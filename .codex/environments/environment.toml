@@ -1,0 +1,30 @@
+name = "BTS ERP OS WSL"
+
+setup_script = """
+set -euo pipefail
+export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+if [ -s "$NVM_DIR/nvm.sh" ]; then
+  . "$NVM_DIR/nvm.sh"
+  nvm use 24.14.0 >/dev/null
+fi
+echo "Project: $(pwd)"
+echo "Node: $(node -v 2>/dev/null || echo missing)"
+echo "npm: $(npm -v 2>/dev/null || echo missing)"
+[ -f package-lock.json ] && npm install || true
+echo "Next steps:"
+echo "  npm run dev"
+echo "  npm run lint"
+echo "  npm run build"
+"""
+
+[[actions]]
+name = "Bootstrap"
+command = "bash scripts/bootstrap.sh"
+
+[[actions]]
+name = "Verify"
+command = "bash scripts/verify.sh"
+
+[[actions]]
+name = "Dev"
+command = "bash -lc 'source ~/.nvm/nvm.sh && nvm use 24.14.0 >/dev/null && npm run dev'"
