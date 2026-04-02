@@ -13,3 +13,4 @@ nvm use 24.14.0 >/dev/null
 
 npm run lint
 npm run build
+npm run db:generate

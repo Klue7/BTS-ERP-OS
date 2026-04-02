@@ -1,0 +1,56 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model ProductFamily {
+  key           String    @id
+  brand         String
+  productName   String
+  categoryLabel String
+  primaryCta    String
+  materialStory Json
+  technicalSpec Json
+  showcase      Json
+  topSellers    Json
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  products      Product[]
+}
+
+model Product {
+  id          String        @id
+  familyKey   String
+  family      ProductFamily @relation(fields: [familyKey], references: [key], onDelete: Cascade)
+  name        String
+  mood        String?
+  category    String?
+  subCategory String?
+  colorHex    String?
+  priceText   String?
+  description String
+  region      String?
+  imageUrls   Json
+  specs       Json
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([familyKey])
+  @@index([category])
+  @@index([subCategory])
+}
+
+model VisualLabConfig {
+  key         String   @id
+  title       String
+  subtitle    String
+  groutColors Json
+  layouts     Json
+  lighting    Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

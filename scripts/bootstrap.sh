@@ -15,11 +15,20 @@ echo "Project: $(pwd)"
 echo "Node: $(node -v)"
 echo "npm: $(npm -v)"
 
+if [ ! -f .env ]; then
+  cp .env.example .env
+  echo "Created local .env from .env.example"
+fi
+
 npm install
+npm run db:generate
 
 echo
 echo "Ready."
 echo "Next commands:"
+echo "  npm run db:up"
+echo "  npm run db:migrate -- --name init_catalog"
+echo "  npm run db:seed"
 echo "  npm run dev"
 echo "  npm run lint"
 echo "  npm run build"
