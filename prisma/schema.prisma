@@ -7,50 +7,468 @@ datasource db {
   provider = "postgresql"
 }
 
-model ProductFamily {
-  key           String    @id
-  brand         String
-  productName   String
-  categoryLabel String
-  primaryCta    String
-  materialStory Json
-  technicalSpec Json
-  showcase      Json
-  topSellers    Json
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  products      Product[]
+enum ProductLifecycleStatus {
+  ACTIVE
+  DRAFT
+  ARCHIVED
+  OUT_OF_STOCK
+}
+
+enum ProductPublishStatus {
+  NOT_READY
+  READY
+  PUBLISHED
+}
+
+enum ProductType {
+  BRICK
+  TILE
+  PAVER
+  STONE
+  SLAB
+}
+
+enum SupplierStatus {
+  ACTIVE
+  ONBOARDING
+  DELAYED
+  RESTOCKING
+  INACTIVE
+}
+
+enum SupplierType {
+  MANUFACTURER
+  DISTRIBUTOR
+  WHOLESALER
+}
+
+enum LocationType {
+  SUPPLIER_ORIGIN
+  WAREHOUSE
+  CUSTOMER_DESTINATION
+}
+
+enum AssetType {
+  IMAGE
+  VIDEO
+  THREE_D_ASSET
+  THREE_D_RENDER
+  MODEL
+}
+
+enum AssetProtectionLevel {
+  PROTECTED_ORIGINAL
+  MANAGED_VARIANT
+  PUBLISHABLE_VARIANT
+}
+
+enum AssetApprovalStatus {
+  DRAFT
+  REVIEW
+  APPROVED
+  ARCHIVED
+  RESTRICTED
+}
+
+enum AssetRole {
+  HERO
+  GALLERY
+  INSTALLATION
+  DETAIL
+  CAMPAIGN
+  THREE_D_READY
+  MODEL
+  PUBLISHABLE_VARIANT
+  FACE_TEXTURE
+  DETAIL_TEXTURE
+  QUOTE_RENDER
+  MARKETING_VARIANT
+  MODEL_REFERENCE
+  RENDER
+  PBR_TEXTURE
+}
+
+enum StockMovementType {
+  RECEIPT
+  RESERVATION
+  RELEASE
+  ISSUE
+  RETURN
+  ADJUSTMENT
+  CANCELLATION
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  SENT
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum GoodsReceiptStatus {
+  PENDING
+  PARTIAL
+  RECEIVED
+  CANCELLED
+}
+
+enum ImportSourceType {
+  CSV
+  XLSX
+  JSON
+  MANUAL
+}
+
+enum ImportStatus {
+  STAGED
+  APPLIED
+  FAILED
+}
+
+enum AssetLinkType {
+  PRODUCT
+  CAMPAIGN
+}
+
+enum ProductHistoryEventType {
+  PRODUCT_CREATED
+  PRODUCT_UPDATED
+  STOCK_UPDATED
+  PRICE_ADJUSTED
+  STATUS_CHANGED
+  ASSET_APPROVED
+  LOW_STOCK_ALERT
+  CAMPAIGN_LINKED
+  IMPORT_APPLIED
 }
 
 model Product {
-  id          String        @id
-  familyKey   String
-  family      ProductFamily @relation(fields: [familyKey], references: [key], onDelete: Cascade)
-  name        String
-  mood        String?
-  category    String?
-  subCategory String?
-  colorHex    String?
-  priceText   String?
-  description String
-  region      String?
-  imageUrls   Json
-  specs       Json
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id                      String                   @id @default(uuid())
+  referenceId             String                   @unique
+  sku                     String                   @unique
+  name                    String
+  productType             ProductType
+  commercialCategory      String
+  collectionName          String?
+  presentationTags        String[]
+  lifecycleStatus         ProductLifecycleStatus   @default(DRAFT)
+  publishStatus           ProductPublishStatus     @default(NOT_READY)
+  unit                    String                   @default("m2")
+  baseSellPrice           Decimal                  @db.Decimal(10, 2)
+  currency                String                   @default("GBP")
+  primaryImageUrl         String
+  description             String
+  marketingCopy           String?
+  technicalSpecifications Json
+  dimensionsText          String?
+  weightKg                Decimal?                 @db.Decimal(10, 2)
+  reorderPoint            Int                      @default(0)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  productSuppliers        ProductSupplier[]
+  stockMovements          StockMovement[]
+  purchaseOrderLines      PurchaseOrderLine[]
+  assets                  ProductAsset[]
+  historyEvents           ProductHistoryEvent[]
+  importRows              PriceListImportRow[]
+  logisticsQuotes         LogisticsQuoteSnapshot[]
+  assetLinks              AssetLink[]
 
-  @@index([familyKey])
-  @@index([category])
-  @@index([subCategory])
+  @@index([productType])
+  @@index([commercialCategory])
+  @@index([lifecycleStatus])
 }
 
-model VisualLabConfig {
-  key         String   @id
-  title       String
-  subtitle    String
-  groutColors Json
-  layouts     Json
-  lighting    Json
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model Supplier {
+  id                 String                   @id @default(uuid())
+  supplierKey        String                   @unique
+  name               String
+  logoUrl            String?
+  status             SupplierStatus           @default(ACTIVE)
+  supplierType       SupplierType
+  capabilities       String[]
+  regionLabel        String
+  leadTimeDays       Int?
+  leadTimeLabel      String?
+  rating             Decimal?                 @db.Decimal(3, 2)
+  blocker            String?
+  contacts           Json?
+  terms              Json?
+  performance        Json?
+  workflowMilestones Json?
+  orderSummary       Json?
+  historySummary     Json?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  locations          FulfillmentLocation[]
+  productSuppliers   ProductSupplier[]
+  purchaseOrders     PurchaseOrder[]
+  rateCards          LogisticsRateCard[]
+  logisticsQuotes    LogisticsQuoteSnapshot[]
+
+  @@index([status])
+}
+
+model FulfillmentLocation {
+  id               String                   @id @default(uuid())
+  locationKey      String                   @unique
+  supplierId       String?
+  type             LocationType
+  label            String
+  country          String
+  region           String
+  city             String
+  latitude         Float?
+  longitude        Float?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  supplier         Supplier?                @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  originRateCards  LogisticsRateCard[]
+  productSuppliers ProductSupplier[]
+  logisticsQuotes  LogisticsQuoteSnapshot[]
+  purchaseOrders   PurchaseOrder[]
+
+  @@unique([supplierId, label])
+  @@index([type])
+}
+
+model ProductSupplier {
+  id                   String              @id @default(uuid())
+  productId            String
+  supplierId           String
+  originLocationId     String
+  isDefault            Boolean             @default(false)
+  unitCost             Decimal             @db.Decimal(10, 2)
+  currency             String              @default("GBP")
+  leadTimeDays         Int?
+  minimumOrderQuantity Int?
+  paymentTerms         String?
+  incoterms            String?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  product              Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplier             Supplier            @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  originLocation       FulfillmentLocation @relation(fields: [originLocationId], references: [id], onDelete: Restrict)
+
+  @@unique([productId, supplierId])
+  @@index([supplierId])
+  @@index([originLocationId])
+}
+
+model StockMovement {
+  id            String            @id @default(uuid())
+  movementKey   String            @unique
+  productId     String
+  movementType  StockMovementType
+  quantity      Int
+  occurredAt    DateTime
+  note          String?
+  referenceType String?
+  referenceId   String?
+  metadata      Json?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  product       Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, occurredAt])
+  @@index([movementType])
+}
+
+model PurchaseOrder {
+  id               String              @id @default(uuid())
+  orderKey         String              @unique
+  supplierId       String
+  originLocationId String
+  status           PurchaseOrderStatus
+  currency         String              @default("GBP")
+  orderedAt        DateTime
+  confirmedAt      DateTime?
+  deliveredAt      DateTime?
+  totalAmount      Decimal             @db.Decimal(12, 2)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  supplier         Supplier            @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  originLocation   FulfillmentLocation @relation(fields: [originLocationId], references: [id], onDelete: Restrict)
+  lines            PurchaseOrderLine[]
+  receipts         GoodsReceipt[]
+
+  @@index([supplierId, orderedAt])
+}
+
+model PurchaseOrderLine {
+  id              String        @id @default(uuid())
+  purchaseOrderId String
+  productId       String
+  quantity        Int
+  unitCost        Decimal       @db.Decimal(10, 2)
+  totalCost       Decimal       @db.Decimal(12, 2)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product         Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([productId])
+}
+
+model GoodsReceipt {
+  id              String             @id @default(uuid())
+  receiptKey      String             @unique
+  purchaseOrderId String
+  receivedAt      DateTime
+  status          GoodsReceiptStatus
+  note            String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  purchaseOrder   PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseOrderId])
+}
+
+model PriceListImportBatch {
+  id         String               @id @default(uuid())
+  batchKey   String               @unique
+  fileName   String
+  sourceType ImportSourceType
+  status     ImportStatus         @default(STAGED)
+  rowCount   Int
+  appliedAt  DateTime?
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+  rows       PriceListImportRow[]
+}
+
+model PriceListImportRow {
+  id                 String               @id @default(uuid())
+  batchId            String
+  rowNumber          Int
+  sku                String
+  name               String
+  productTypeLabel   String
+  commercialCategory String
+  collectionName     String?
+  description        String?
+  sellPrice          Decimal?             @db.Decimal(10, 2)
+  unitCost           Decimal?             @db.Decimal(10, 2)
+  currency           String?
+  unit               String?
+  tags               String[]
+  rawData            Json
+  actionTaken        String?
+  errorMessage       String?
+  appliedProductId   String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  batch              PriceListImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  product            Product?             @relation(fields: [appliedProductId], references: [id], onDelete: SetNull)
+
+  @@index([batchId, rowNumber])
+  @@index([sku])
+}
+
+model ProductAsset {
+  id                    String               @id @default(uuid())
+  assetKey              String               @unique
+  primaryProductId      String?
+  name                  String
+  assetType             AssetType
+  protectionLevel       AssetProtectionLevel
+  approvalStatus        AssetApprovalStatus
+  sizeLabel             String
+  imageUrl              String
+  usageRoles            AssetRole[]
+  parentAssetId         String?
+  completeness          Int?
+  isThreeDReady         Boolean              @default(false)
+  watermarkProfile      String?
+  backgroundTransparent Boolean?
+  workflowNode          String?
+  pipeline              Json?
+  tags                  String[]
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  primaryProduct        Product?             @relation(fields: [primaryProductId], references: [id], onDelete: SetNull)
+  parentAsset           ProductAsset?        @relation("AssetParent", fields: [parentAssetId], references: [id], onDelete: SetNull)
+  variants              ProductAsset[]       @relation("AssetParent")
+  links                 AssetLink[]
+
+  @@index([primaryProductId])
+  @@index([approvalStatus])
+}
+
+model AssetLink {
+  id          String        @id @default(uuid())
+  assetId     String
+  linkType    AssetLinkType
+  productId   String?
+  campaignKey String?
+  createdAt   DateTime      @default(now())
+  asset       ProductAsset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  product     Product?      @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([assetId, linkType])
+  @@index([productId])
+  @@index([campaignKey])
+}
+
+model ProductHistoryEvent {
+  id          String                  @id @default(uuid())
+  productId   String
+  eventType   ProductHistoryEventType
+  actionLabel String
+  userName    String
+  details     String?
+  occurredAt  DateTime
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  product     Product                 @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, occurredAt])
+}
+
+model LogisticsRateCard {
+  id               String                   @id @default(uuid())
+  rateKey          String                   @unique
+  supplierId       String
+  originLocationId String
+  currency         String                   @default("GBP")
+  costPerKm        Decimal                  @db.Decimal(10, 2)
+  sellPricePerKm   Decimal                  @db.Decimal(10, 2)
+  fixedFee         Decimal                  @db.Decimal(10, 2)
+  minimumCharge    Decimal                  @db.Decimal(10, 2)
+  isActive         Boolean                  @default(true)
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  supplier         Supplier                 @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  originLocation   FulfillmentLocation      @relation(fields: [originLocationId], references: [id], onDelete: Restrict)
+  quotes           LogisticsQuoteSnapshot[]
+
+  @@index([supplierId, isActive])
+}
+
+model LogisticsQuoteSnapshot {
+  id                 String              @id @default(uuid())
+  quoteKey           String              @unique
+  productId          String
+  supplierId         String
+  originLocationId   String
+  rateCardId         String?
+  destinationLabel   String
+  distanceKm         Decimal             @db.Decimal(10, 2)
+  costPerKm          Decimal             @db.Decimal(10, 2)
+  sellPricePerKm     Decimal             @db.Decimal(10, 2)
+  fixedFee           Decimal             @db.Decimal(10, 2)
+  minimumCharge      Decimal             @db.Decimal(10, 2)
+  logisticsCost      Decimal             @db.Decimal(10, 2)
+  logisticsSellPrice Decimal             @db.Decimal(10, 2)
+  currency           String              @default("GBP")
+  createdAt          DateTime            @default(now())
+  product            Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplier           Supplier            @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  originLocation     FulfillmentLocation @relation(fields: [originLocationId], references: [id], onDelete: Restrict)
+  rateCard           LogisticsRateCard?  @relation(fields: [rateCardId], references: [id], onDelete: SetNull)
+
+  @@index([productId, createdAt])
+  @@index([supplierId])
 }

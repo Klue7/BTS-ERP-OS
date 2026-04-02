@@ -119,6 +119,8 @@ import { useVisualLab } from './VisualLabContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { CRMProjectsTenders } from './CRMProjectsTenders';
 import { MarketingCommunityFeed } from './MarketingCommunityFeed';
+import { useInventoryPortalData } from '../inventory/useInventoryPortalData';
+import type { InventoryDashboardSnapshot } from '../inventory/contracts';
 
 // --- Types & Interfaces ---
 
@@ -603,9 +605,11 @@ interface Vendor {
 
 interface Product {
   id: string;
+  recordId?: string;
   name: string;
   sku: string;
   category: string;
+  productType?: string;
   status: 'Active' | 'Draft' | 'Archived' | 'Out of Stock';
   stock: number;
   minStock: number;
@@ -1169,10 +1173,12 @@ const MOCK_ASSETS: Asset[] = [
 // --- Inventory Components ---
 
 const InventoryCatalog = ({ 
+  products,
   onProductClick, 
   onAddProduct, 
   onImportPriceList 
 }: { 
+  products: Product[],
   onProductClick: (product: Product) => void,
   onAddProduct: () => void,
   onImportPriceList: () => void
@@ -1182,9 +1188,9 @@ const InventoryCatalog = ({
 
   const categories = ['All', 'Brick', 'Tile', 'Luxury', 'Stone', 'Paver'];
 
-  const filteredProducts = BTS_PRODUCTS.filter(p => {
+  const filteredProducts = products.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.sku.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = activeCategory === 'All' || p.category === activeCategory;
+    const matchesCategory = activeCategory === 'All' || p.category === activeCategory || p.productType === activeCategory;
     return matchesSearch && matchesCategory;
   });
 
@@ -1798,7 +1804,27 @@ export function EmployeePortal() {
  );
 }
 
-const AddProductWizard = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+const AddProductWizard = ({
+  isOpen,
+  onClose,
+  onCreateProduct,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onCreateProduct: (input: {
+    name: string;
+    sku: string;
+    productType: string;
+    commercialCategory: string;
+    description: string;
+    sellPrice?: number;
+    unit?: string;
+    dimensions?: string;
+    weightKg?: number;
+    reorderPoint?: number;
+    initialStock?: number;
+  }) => Promise<void>;
+}) => {
   const [step, setStep] = useState(1);
   const [productData, setProductData] = useState({
     name: '',
@@ -1813,6 +1839,31 @@ const AddProductWizard = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
     stockLevel: 0,
     minStock: 100,
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    setStep(1);
+    setSubmitError(null);
+    setIsSubmitting(false);
+    setProductData({
+      name: '',
+      sku: '',
+      category: 'Brick',
+      description: '',
+      price: '',
+      unit: 'm2',
+      supplier: '',
+      dimensions: '',
+      weight: '',
+      stockLevel: 0,
+      minStock: 100,
+    });
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -1981,6 +2032,9 @@ const AddProductWizard = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
                     <div className="text-lg font-bold text-amber-400">0%</div>
                   </div>
                 </div>
+                {submitError && (
+                  <p className="text-xs text-red-400 text-center">{submitError}</p>
+                )}
               </motion.div>
             )}
           </div>
@@ -2004,16 +2058,40 @@ const AddProductWizard = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
                 Cancel
               </button>
               <button 
-                onClick={() => {
-                  if (step < 3) setStep(step + 1);
-                  else {
-                    // Finalize
+                onClick={async () => {
+                  if (step < 3) {
+                    setStep(step + 1);
+                    return;
+                  }
+
+                  setIsSubmitting(true);
+                  setSubmitError(null);
+
+                  try {
+                    await onCreateProduct({
+                      name: productData.name,
+                      sku: productData.sku,
+                      productType: productData.category,
+                      commercialCategory: productData.category === 'Stone' ? 'Luxury' : 'Premium',
+                      description: productData.description,
+                      sellPrice: productData.price ? Number(productData.price) : undefined,
+                      unit: productData.unit,
+                      dimensions: productData.dimensions || undefined,
+                      weightKg: productData.weight ? Number(productData.weight) : undefined,
+                      reorderPoint: productData.minStock,
+                      initialStock: productData.stockLevel,
+                    });
                     onClose();
+                  } catch (error) {
+                    setSubmitError(error instanceof Error ? error.message : 'Failed to create product.');
+                  } finally {
+                    setIsSubmitting(false);
                   }
                 }}
+                disabled={isSubmitting}
                 className="px-8 py-3 bg-blue-400 text-black text-[10px] font-bold uppercase tracking-widest rounded-xl hover:bg-blue-300 transition-all shadow-[0_0_20px_rgba(96,165,250,0.3)]"
               >
-                {step === 3 ? 'Create Product' : 'Next Step'}
+                {isSubmitting ? 'Creating...' : step === 3 ? 'Create Product' : 'Next Step'}
               </button>
             </div>
           </div>
@@ -2023,9 +2101,154 @@ const AddProductWizard = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
   );
 };
 
-const ImportPriceListWizard = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+const ImportPriceListWizard = ({
+  isOpen,
+  onClose,
+  onImportPriceList,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onImportPriceList: (input: {
+    fileName: string;
+    sourceType: 'csv' | 'xlsx' | 'json' | 'manual';
+    rows: {
+      sku: string;
+      name: string;
+      productType: string;
+      commercialCategory: string;
+      collection?: string;
+      description?: string;
+      sellPrice?: number;
+      unitCost?: number;
+      currency?: string;
+      unit?: string;
+      tags?: string[];
+    }[];
+  }) => Promise<unknown>;
+}) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setIsUploading(false);
+      setUploadProgress(0);
+      setUploadError(null);
+    }
+  }, [isOpen]);
+
+  const normalizeRows = useCallback((rows: Record<string, unknown>[]) => {
+    return rows
+      .map((row) => {
+        const normalized = Object.fromEntries(
+          Object.entries(row).map(([key, value]) => [key.trim().toLowerCase(), value]),
+        );
+
+        const productType = String(
+          normalized.producttype ??
+            normalized.product_type ??
+            normalized.category ??
+            'Brick',
+        ).trim() || 'Brick';
+
+        const commercialCategory = String(
+          normalized.commercialcategory ??
+            normalized.commercial_category ??
+            (productType === 'Stone' ? 'Luxury' : 'Premium'),
+        ).trim() || (productType === 'Stone' ? 'Luxury' : 'Premium');
+
+        const tagsValue = normalized.tags;
+        const tags = Array.isArray(tagsValue)
+          ? tagsValue.map((value) => String(value))
+          : typeof tagsValue === 'string'
+          ? tagsValue.split(',').map((value) => value.trim()).filter(Boolean)
+          : undefined;
+
+        const sellPriceValue = normalized.sellprice ?? normalized.sell_price ?? normalized.price;
+        const unitCostValue = normalized.unitcost ?? normalized.unit_cost ?? normalized.cost;
+
+        return {
+          sku: String(normalized.sku ?? '').trim(),
+          name: String(normalized.name ?? '').trim(),
+          productType,
+          commercialCategory,
+          collection: String(normalized.collection ?? normalized.range ?? '').trim() || undefined,
+          description: String(normalized.description ?? '').trim() || undefined,
+          sellPrice: sellPriceValue !== undefined && sellPriceValue !== '' ? Number(sellPriceValue) : undefined,
+          unitCost: unitCostValue !== undefined && unitCostValue !== '' ? Number(unitCostValue) : undefined,
+          currency: String(normalized.currency ?? 'GBP').trim() || 'GBP',
+          unit: String(normalized.unit ?? 'm2').trim() || 'm2',
+          tags,
+        };
+      })
+      .filter((row) => row.sku && row.name);
+  }, []);
+
+  const handleFileSelected = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress(10);
+    setUploadError(null);
+
+    try {
+      const extension = file.name.split('.').pop()?.toLowerCase();
+      let rows: {
+        sku: string;
+        name: string;
+        productType: string;
+        commercialCategory: string;
+        collection?: string;
+        description?: string;
+        sellPrice?: number;
+        unitCost?: number;
+        currency?: string;
+        unit?: string;
+        tags?: string[];
+      }[] = [];
+
+      if (extension === 'json') {
+        const text = await file.text();
+        const payload = JSON.parse(text);
+        const inputRows = Array.isArray(payload) ? payload : Array.isArray(payload.rows) ? payload.rows : [];
+        rows = normalizeRows(inputRows as Record<string, unknown>[]);
+      } else {
+        const XLSX = await import('xlsx');
+        const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const sheetRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, { defval: '' });
+        rows = normalizeRows(sheetRows);
+      }
+
+      if (rows.length === 0) {
+        throw new Error('No valid SKU rows were found in the selected file.');
+      }
+
+      setUploadProgress(45);
+      await onImportPriceList({
+        fileName: file.name,
+        sourceType: extension === 'json' ? 'json' : extension === 'xlsx' ? 'xlsx' : 'csv',
+        rows,
+      });
+      setUploadProgress(100);
+      setTimeout(() => {
+        onClose();
+      }, 400);
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Failed to import the selected file.');
+      setIsUploading(false);
+      setUploadProgress(0);
+    } finally {
+      if (event.target) {
+        event.target.value = '';
+      }
+    }
+  }, [normalizeRows, onClose, onImportPriceList]);
 
   if (!isOpen) return null;
 
@@ -2065,25 +2288,22 @@ const ImportPriceListWizard = ({ isOpen, onClose }: { isOpen: boolean; onClose: 
                 <div>
                   <h3 className="text-lg font-medium text-white uppercase tracking-tight">Drop Price List Here</h3>
                   <p className="text-sm text-white/40 mt-2">Support for .csv, .xlsx, and .json formats.</p>
+                  {uploadError && <p className="text-xs text-red-400 mt-3">{uploadError}</p>}
                 </div>
                 <div className="flex items-center justify-center gap-4 pt-4">
                   <button 
-                    onClick={() => {
-                      setIsUploading(true);
-                      let p = 0;
-                      const interval = setInterval(() => {
-                        p += 5;
-                        setUploadProgress(p);
-                        if (p >= 100) {
-                          clearInterval(interval);
-                          setTimeout(onClose, 500);
-                        }
-                      }, 100);
-                    }}
+                    onClick={() => fileInputRef.current?.click()}
                     className="px-8 py-3 bg-blue-400 text-black text-[10px] font-bold uppercase tracking-widest rounded-xl hover:bg-blue-300 transition-all shadow-[0_0_20px_rgba(96,165,250,0.3)]"
                   >
                     Select File
                   </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv,.xlsx,.json"
+                    className="hidden"
+                    onChange={handleFileSelected}
+                  />
                 </div>
               </div>
             ) : (
@@ -2124,8 +2344,23 @@ const ImportPriceListWizard = ({ isOpen, onClose }: { isOpen: boolean; onClose: 
   );
 };
 
-const ManageAssetsWizard = ({ isOpen, onClose, product }: { isOpen: boolean; onClose: () => void; product: Product | null }) => {
+const ManageAssetsWizard = ({
+  isOpen,
+  onClose,
+  product,
+  assets,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  product: Product | null;
+  assets: Asset[];
+}) => {
   if (!isOpen || !product) return null;
+
+  const storageUsedMb = assets.reduce((total, asset) => {
+    const numericValue = Number.parseFloat(asset.size.replace(/[^0-9.]/g, ''));
+    return total + (Number.isFinite(numericValue) ? numericValue : 0);
+  }, 0);
 
   return (
     <AnimatePresence>
@@ -2174,12 +2409,12 @@ const ManageAssetsWizard = ({ isOpen, onClose, product }: { isOpen: boolean; onC
             
             <div className="col-span-2 p-8 overflow-y-auto custom-scrollbar bg-black/20">
               <div className="grid grid-cols-2 gap-6">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={`asset-v${i}`} className="group relative aspect-square bg-white/5 rounded-2xl border border-white/10 overflow-hidden hover:border-blue-400/50 transition-all">
-                    <img src={`https://picsum.photos/seed/asset${i}/800/800`} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" referrerPolicy="no-referrer" />
+                {assets.map((asset) => (
+                  <div key={asset.id} className="group relative aspect-square bg-white/5 rounded-2xl border border-white/10 overflow-hidden hover:border-blue-400/50 transition-all">
+                    <img src={asset.img} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" referrerPolicy="no-referrer" />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-4 flex flex-col justify-end">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-mono text-white uppercase tracking-widest">asset_v{i}.jpg</span>
+                        <span className="text-[10px] font-mono text-white uppercase tracking-widest">{asset.name}</span>
                         <div className="flex gap-2">
                           <button className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"><Edit size={12} /></button>
                           <button className="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/40 transition-colors"><X size={12} /></button>
@@ -2200,11 +2435,11 @@ const ManageAssetsWizard = ({ isOpen, onClose, product }: { isOpen: boolean; onC
             <div className="flex items-center gap-6">
               <div className="flex flex-col">
                 <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">Storage Used</span>
-                <span className="text-xs font-mono text-white/60 uppercase tracking-widest">12.4 MB</span>
+                <span className="text-xs font-mono text-white/60 uppercase tracking-widest">{storageUsedMb.toFixed(1)} MB</span>
               </div>
               <div className="flex flex-col">
                 <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">Asset Count</span>
-                <span className="text-xs font-mono text-white/60 uppercase tracking-widest">4 / 12</span>
+                <span className="text-xs font-mono text-white/60 uppercase tracking-widest">{assets.length} / 12</span>
               </div>
             </div>
             <button 
@@ -2220,7 +2455,15 @@ const ManageAssetsWizard = ({ isOpen, onClose, product }: { isOpen: boolean; onC
   );
 };
 
-const Inventory3DAssets = ({ onProductClick }: { onProductClick: (product: Product) => void }) => {
+const Inventory3DAssets = ({
+  products,
+  dashboard,
+  onProductClick,
+}: {
+  products: Product[];
+  dashboard: InventoryDashboardSnapshot | null;
+  onProductClick: (product: Product) => void;
+}) => {
   return (
     <div className="space-y-8">
       <header className="flex justify-between items-end">
@@ -2231,7 +2474,7 @@ const Inventory3DAssets = ({ onProductClick }: { onProductClick: (product: Produ
         <div className="flex gap-4">
           <div className="flex flex-col items-end">
             <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">Global 3D Readiness</span>
-            <span className="text-xl font-mono text-blue-400 font-bold">64.2%</span>
+            <span className="text-xl font-mono text-blue-400 font-bold">{dashboard?.summary.globalThreedReadiness.toFixed(1) ?? '0.0'}%</span>
           </div>
           <button className="px-6 py-3 bg-blue-400 text-black text-[10px] font-bold uppercase tracking-widest rounded-xl hover:bg-blue-300 transition-all shadow-[0_0_20px_rgba(96,165,250,0.3)]">
             Batch Process Renders
@@ -2240,7 +2483,7 @@ const Inventory3DAssets = ({ onProductClick }: { onProductClick: (product: Produ
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {BTS_PRODUCTS.map(product => (
+        {products.map(product => (
           <div 
             key={product.id}
             onClick={() => onProductClick(product)}
@@ -2304,7 +2547,18 @@ const Inventory3DAssets = ({ onProductClick }: { onProductClick: (product: Produ
   );
 };
 
-const InventoryInsights = () => {
+const InventoryInsights = ({
+  dashboard,
+  products,
+}: {
+  dashboard: InventoryDashboardSnapshot | null;
+  products: Product[];
+}) => {
+  const velocitySeries = dashboard?.velocitySeries ?? [];
+  const categoryDistribution = dashboard?.categoryDistribution ?? [];
+  const assetRoi = dashboard?.assetRoi;
+  const topPerformers = dashboard?.topPerformers ?? [];
+
   return (
     <div className="space-y-10">
       <header>
@@ -2329,19 +2583,19 @@ const InventoryInsights = () => {
               </div>
             </div>
             <div className="h-64 flex items-end gap-2">
-              {[40, 65, 45, 90, 75, 55, 85, 40, 60, 95, 70, 50].map((val, i) => (
+              {velocitySeries.map((series, i) => (
                 <div key={`velocity-bar-${i}`} className="flex-1 flex flex-col items-center gap-2 group">
                   <div className="w-full relative">
                     <div 
                       className="w-full bg-white/5 rounded-t-sm group-hover:bg-white/10 transition-colors" 
-                      style={{ height: `${val + 10}%` }} 
+                      style={{ height: `${series.predicted + 10}%` }} 
                     />
                     <div 
                       className="absolute bottom-0 w-full bg-blue-400/40 rounded-t-sm group-hover:bg-blue-400 transition-all" 
-                      style={{ height: `${val}%` }} 
+                      style={{ height: `${series.current}%` }} 
                     />
                   </div>
-                  <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">M{i+1}</span>
+                  <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">{series.label}</span>
                 </div>
               ))}
             </div>
@@ -2351,19 +2605,14 @@ const InventoryInsights = () => {
             <div className="bg-[#0a0a0a] border border-white/5 rounded-2xl p-8">
               <h3 className="text-xs font-bold uppercase tracking-widest mb-6">Category Distribution</h3>
               <div className="space-y-4">
-                {[
-                  { label: 'Brick', val: 45, color: 'bg-blue-400' },
-                  { label: 'Tile', val: 30, color: 'bg-[#00ff88]' },
-                  { label: 'Luxury', val: 15, color: 'bg-purple-500' },
-                  { label: 'Stone', val: 10, color: 'bg-amber-500' },
-                ].map(item => (
+                {categoryDistribution.map((item, index) => (
                   <div key={item.label} className="space-y-2">
                     <div className="flex justify-between text-[10px] uppercase tracking-widest">
                       <span className="text-white/40">{item.label}</span>
-                      <span className="text-white/60">{item.val}%</span>
+                      <span className="text-white/60">{item.value}%</span>
                     </div>
                     <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
-                      <div className={`h-full ${item.color}`} style={{ width: `${item.val}%` }} />
+                      <div className={`h-full ${['bg-blue-400', 'bg-[#00ff88]', 'bg-purple-500', 'bg-amber-500'][index % 4]}`} style={{ width: `${item.value}%` }} />
                     </div>
                   </div>
                 ))}
@@ -2374,11 +2623,11 @@ const InventoryInsights = () => {
               <div className="space-y-6">
                 <div className="p-4 bg-white/5 rounded-xl border border-white/5">
                   <div className="text-[8px] font-mono text-white/40 uppercase tracking-widest mb-1">3D Conversion Lift</div>
-                  <div className="text-2xl font-bold text-[#00ff88]">+24.8%</div>
+                  <div className="text-2xl font-bold text-[#00ff88]">+{assetRoi?.conversionLift.toFixed(1) ?? '0.0'}%</div>
                 </div>
                 <div className="p-4 bg-white/5 rounded-xl border border-white/5">
                   <div className="text-[8px] font-mono text-white/40 uppercase tracking-widest mb-1">Sample Request Rate</div>
-                  <div className="text-2xl font-bold text-blue-400">12.4%</div>
+                  <div className="text-2xl font-bold text-blue-400">{assetRoi?.sampleRequestRate.toFixed(1) ?? '0.0'}%</div>
                 </div>
               </div>
             </div>
@@ -2393,7 +2642,7 @@ const InventoryInsights = () => {
               </div>
               <h3 className="text-xs font-bold uppercase tracking-widest">AI Stock Predictor</h3>
             </div>
-            <p className="text-xs text-white/60 leading-relaxed mb-6">Based on current velocity and seasonal trends, we predict a stock-out for <span className="text-white font-bold">PRD_882</span> in 14 days.</p>
+            <p className="text-xs text-white/60 leading-relaxed mb-6">Based on the live stock ledger and supplier lead times, we predict a stock-out risk for <span className="text-white font-bold">{dashboard?.lowStockAlerts[0]?.id ?? products[0]?.id ?? 'N/A'}</span> in the next replenishment cycle.</p>
             <button className="w-full py-3 bg-blue-400 text-black text-[10px] font-bold uppercase tracking-widest rounded-xl hover:bg-blue-300 transition-all">
               Auto-Replenish
             </button>
@@ -2402,14 +2651,14 @@ const InventoryInsights = () => {
           <div className="bg-[#0a0a0a] border border-white/5 rounded-2xl p-8">
             <h3 className="text-xs font-bold uppercase tracking-widest mb-6">Top Performers</h3>
             <div className="space-y-4">
-              {BTS_PRODUCTS.slice(0, 3).map(p => (
+              {topPerformers.map(p => (
                 <div key={p.id} className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/10">
-                    <img src={p.img} alt={p.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    <img src={p.primaryImageUrl} alt={p.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                   </div>
                   <div className="flex-1">
                     <div className="text-[10px] font-bold text-white uppercase tracking-tight truncate">{p.name}</div>
-                    <div className="text-[8px] font-mono text-white/40 uppercase tracking-widest">£{(p.price * 100).toLocaleString()} Revenue</div>
+                    <div className="text-[8px] font-mono text-white/40 uppercase tracking-widest">{p.readiness.catalogHealth}% Catalog Health</div>
                   </div>
                 </div>
               ))}
@@ -6311,6 +6560,7 @@ function EmployeePortalContent() {
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null);
   const [activeActionWizard, setActiveActionWizard] = useState<{type: string, nodeId: string, nodeLabel: string} | null>(null);
+  const inventoryPortal = useInventoryPortalData();
 
   const handleActionComplete = useCallback((action: string, nodeId: string, nodeLabel: string) => {
     const toast = document.createElement('div');
@@ -6355,6 +6605,29 @@ function EmployeePortalContent() {
       return n;
     }));
   }, [handleActionClick, setNodes]);
+
+  useEffect(() => {
+    if (!selectedInventoryProduct && inventoryPortal.products.length > 0) {
+      setSelectedInventoryProduct(inventoryPortal.products[0]);
+    }
+  }, [inventoryPortal.products, selectedInventoryProduct]);
+
+  useEffect(() => {
+    if (!selectedInventoryProduct) {
+      return;
+    }
+
+    const updatedProduct = inventoryPortal.productsById[selectedInventoryProduct.id];
+    if (updatedProduct && updatedProduct !== selectedInventoryProduct) {
+      setSelectedInventoryProduct(updatedProduct);
+    }
+  }, [inventoryPortal.productsById, selectedInventoryProduct]);
+
+  const selectedInventoryAssets = useMemo(
+    () => (selectedInventoryProduct ? inventoryPortal.assetsByProductId[selectedInventoryProduct.id] ?? [] : []),
+    [inventoryPortal.assetsByProductId, selectedInventoryProduct],
+  );
+
   const [isDetailPanelOpen, setIsDetailPanelOpen] = useState(false);
   const [isMasterPromptOpen, setIsMasterPromptOpen] = useState(false);
  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
@@ -7218,19 +7491,19 @@ function EmployeePortalContent() {
           })}
         </nav>
 
-        <div className="p-6 border-t border-white/5">
-          <div className="bg-blue-400/5 border border-blue-400/10 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Activity size={12} className="text-blue-400" />
-              <span className="text-[10px] font-mono text-blue-400 uppercase tracking-widest">Catalog Health</span>
-            </div>
-            <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
-              <div className="w-[85%] h-full bg-blue-400" />
-            </div>
-            <p className="text-[8px] font-mono text-white/30 uppercase tracking-widest mt-2">85% Global Readiness</p>
-          </div>
-        </div>
-      </div>
+	        <div className="p-6 border-t border-white/5">
+	          <div className="bg-blue-400/5 border border-blue-400/10 rounded-xl p-4">
+	            <div className="flex items-center gap-2 mb-2">
+	              <Activity size={12} className="text-blue-400" />
+	              <span className="text-[10px] font-mono text-blue-400 uppercase tracking-widest">Catalog Health</span>
+	            </div>
+	            <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+	              <div className="h-full bg-blue-400" style={{ width: `${inventoryPortal.dashboard?.summary.globalCatalogHealth ?? 0}%` }} />
+	            </div>
+	            <p className="text-[8px] font-mono text-white/30 uppercase tracking-widest mt-2">{inventoryPortal.dashboard?.summary.globalCatalogHealth ?? 0}% Global Readiness</p>
+	          </div>
+	        </div>
+	      </div>
 
       {/* Inventory Content Area */}
       <div className="flex-1 h-full overflow-y-auto custom-scrollbar bg-[radial-gradient(circle_at_50%_50%,rgba(96,165,250,0.02),transparent)]">
@@ -7242,26 +7515,21 @@ function EmployeePortalContent() {
                 <p className="text-[10px] font-mono text-white/40 uppercase tracking-[0.3em]">Stock Control & Asset Health Monitoring</p>
               </header>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-8">
-                  <div className="flex items-center justify-between mb-8">
-                    <h3 className="text-xs font-bold uppercase tracking-widest">Low Stock Alerts</h3>
-                    <div className="flex items-center gap-2 text-red-400 text-[10px] uppercase tracking-widest font-bold">
-                      <AlertCircle size={14} /> 4 Items Critical
-                    </div>
-                  </div>
-                  <div className="space-y-4">
-                    {[
-                      { name: 'Red Clay Brick', stock: 120, min: 500, status: 'Critical' },
-                      { name: 'Ceramic Floor Tile', stock: 45, min: 200, status: 'Critical' },
-                      { name: 'White Subway Tile', stock: 850, min: 1000, status: 'Low' },
-                      { name: 'Grey Slate Paver', stock: 12, min: 100, status: 'Critical' },
-                    ].map((item) => (
-                      <div key={item.name} className="flex items-center gap-6 p-4 bg-white/5 rounded-xl border border-white/5">
-                        <div className="flex-1">
-                          <div className="text-sm font-bold mb-1">{item.name}</div>
-                          <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
-                            <div 
+	              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+	                <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-8">
+	                  <div className="flex items-center justify-between mb-8">
+	                    <h3 className="text-xs font-bold uppercase tracking-widest">Low Stock Alerts</h3>
+	                    <div className="flex items-center gap-2 text-red-400 text-[10px] uppercase tracking-widest font-bold">
+	                      <AlertCircle size={14} /> {inventoryPortal.dashboard?.summary.lowStockCount ?? 0} Items Critical
+	                    </div>
+	                  </div>
+	                  <div className="space-y-4">
+	                    {(inventoryPortal.dashboard?.lowStockAlerts ?? []).map((item) => (
+	                      <div key={item.name} className="flex items-center gap-6 p-4 bg-white/5 rounded-xl border border-white/5">
+	                        <div className="flex-1">
+	                          <div className="text-sm font-bold mb-1">{item.name}</div>
+	                          <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+	                            <div 
                               className={`h-full ${item.status === 'Critical' ? 'bg-red-500' : 'bg-amber-500'}`} 
                               style={{ width: `${(item.stock / item.min) * 100}%` }}
                             ></div>
@@ -7276,23 +7544,18 @@ function EmployeePortalContent() {
                   </div>
                 </div>
 
-                <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-8">
-                  <div className="flex items-center justify-between mb-8">
-                    <h3 className="text-xs font-bold uppercase tracking-widest">Marketing Asset Health</h3>
-                    <div className="flex items-center gap-2 text-[#00ff88] text-[10px] uppercase tracking-widest font-bold">
-                      <CheckCircle2 size={14} /> 85% Coverage
-                    </div>
-                  </div>
-                  <div className="space-y-4">
-                    {[
-                      { id: 'PRD_882', name: 'Slate Grey Tile', images: 12, campaigns: 3, model3D: true, renders: 5, health: 'Excellent' },
-                      { id: 'PRD_112', name: 'Emerald Glaze Brick', images: 4, campaigns: 1, model3D: true, renders: 0, health: 'Good' },
-                      { id: 'PRD_443', name: 'Rustic Red Brick', images: 2, campaigns: 0, model3D: false, renders: 0, health: 'Needs Assets' },
-                      { id: 'PRD_991', name: 'Carrara Marble Slab', images: 0, campaigns: 0, model3D: false, renders: 0, health: 'Missing All' },
-                    ].map((item) => (
-                      <div key={item.id} className="p-4 bg-white/5 rounded-xl border border-white/5 flex flex-col gap-3">
-                        <div className="flex items-center justify-between">
-                          <div>
+	                <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-8">
+	                  <div className="flex items-center justify-between mb-8">
+	                    <h3 className="text-xs font-bold uppercase tracking-widest">Marketing Asset Health</h3>
+	                    <div className="flex items-center gap-2 text-[#00ff88] text-[10px] uppercase tracking-widest font-bold">
+	                      <CheckCircle2 size={14} /> {Math.round(inventoryPortal.dashboard?.summary.globalAssetReadiness ?? 0)}% Coverage
+	                    </div>
+	                  </div>
+	                  <div className="space-y-4">
+	                    {(inventoryPortal.dashboard?.assetCoverage ?? []).map((item) => (
+	                      <div key={item.id} className="p-4 bg-white/5 rounded-xl border border-white/5 flex flex-col gap-3">
+	                        <div className="flex items-center justify-between">
+	                          <div>
                             <div className="text-sm font-bold">{item.name}</div>
                             <div className="text-[8px] font-mono text-white/40 uppercase tracking-widest">{item.id}</div>
                           </div>
@@ -7319,35 +7582,38 @@ function EmployeePortalContent() {
             </motion.div>
           )}
 
-          {activeInventorySubModule === 'Catalog' && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-              <InventoryCatalog 
-                onProductClick={(product) => {
-                  setSelectedInventoryProduct(product);
-                  setIsInventoryDetailOpen(true);
-                }}
-                onAddProduct={() => setIsAddProductWizardOpen(true)}
-                onImportPriceList={() => setIsImportPriceListOpen(true)}
-              />
-            </motion.div>
-          )}
-
-          {activeInventorySubModule === '3DAssets' && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-              <Inventory3DAssets 
-                onProductClick={(product) => {
-                  setSelectedInventoryProduct(product);
-                  setIsInventoryDetailOpen(true);
-                }}
-              />
-            </motion.div>
-          )}
-
-          {activeInventorySubModule === 'Insights' && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-              <InventoryInsights />
-            </motion.div>
-          )}
+	          {activeInventorySubModule === 'Catalog' && (
+	            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+	              <InventoryCatalog 
+	                products={inventoryPortal.products}
+	                onProductClick={(product) => {
+	                  setSelectedInventoryProduct(product);
+	                  setIsInventoryDetailOpen(true);
+	                }}
+	                onAddProduct={() => setIsAddProductWizardOpen(true)}
+	                onImportPriceList={() => setIsImportPriceListOpen(true)}
+	              />
+	            </motion.div>
+	          )}
+	
+	          {activeInventorySubModule === '3DAssets' && (
+	            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+	              <Inventory3DAssets 
+	                products={inventoryPortal.products}
+	                dashboard={inventoryPortal.dashboard}
+	                onProductClick={(product) => {
+	                  setSelectedInventoryProduct(product);
+	                  setIsInventoryDetailOpen(true);
+	                }}
+	              />
+	            </motion.div>
+	          )}
+	
+	          {activeInventorySubModule === 'Insights' && (
+	            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+	              <InventoryInsights dashboard={inventoryPortal.dashboard} products={inventoryPortal.products} />
+	            </motion.div>
+	          )}
         </div>
       </div>
 
@@ -7357,11 +7623,11 @@ function EmployeePortalContent() {
         onClose={() => setIsCustomerDetailOpen(false)} 
         customer={selectedCustomer} 
       />
-      <InventoryDetailDrawer 
-        product={selectedInventoryProduct}
-        isOpen={isInventoryDetailOpen}
-        onClose={() => setIsInventoryDetailOpen(false)}
-        activeTab={inventoryDetailTab}
+	      <InventoryDetailDrawer 
+	        product={selectedInventoryProduct}
+	        isOpen={isInventoryDetailOpen}
+	        onClose={() => setIsInventoryDetailOpen(false)}
+	        activeTab={inventoryDetailTab}
         onTabChange={(tab) => setInventoryDetailTab(tab as any)}
         onManageAssets={() => setIsManageAssetsOpen(true)}
       />
@@ -9821,15 +10087,18 @@ function EmployeePortalContent() {
  <AddProductWizard 
    isOpen={isAddProductWizardOpen} 
    onClose={() => setIsAddProductWizardOpen(false)} 
+   onCreateProduct={inventoryPortal.createProduct}
  />
  <ImportPriceListWizard 
    isOpen={isImportPriceListOpen} 
    onClose={() => setIsImportPriceListOpen(false)} 
+   onImportPriceList={inventoryPortal.importPriceList}
  />
  <ManageAssetsWizard 
    isOpen={isManageAssetsOpen} 
    onClose={() => setIsManageAssetsOpen(false)}
    product={selectedInventoryProduct}
+   assets={selectedInventoryAssets}
  />
  <FinanceDetailDrawer 
    record={selectedFinanceRecord} 

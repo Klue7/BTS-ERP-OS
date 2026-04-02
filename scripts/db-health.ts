@@ -1,19 +1,23 @@
 import { prisma } from '../prisma/client.ts';
 
 async function main() {
-  const [familyCount, productCount, visualLabCount] = await prisma.$transaction([
-    prisma.productFamily.count(),
+  const [productCount, supplierCount, assetCount, stockMovementCount, rateCardCount] = await prisma.$transaction([
     prisma.product.count(),
-    prisma.visualLabConfig.count(),
+    prisma.supplier.count(),
+    prisma.productAsset.count(),
+    prisma.stockMovement.count(),
+    prisma.logisticsRateCard.count(),
   ]);
 
   console.log(
     JSON.stringify(
       {
         ok: true,
-        productFamilies: familyCount,
         products: productCount,
-        visualLabConfigs: visualLabCount,
+        suppliers: supplierCount,
+        assets: assetCount,
+        stockMovements: stockMovementCount,
+        logisticsRateCards: rateCardCount,
       },
       null,
       2,

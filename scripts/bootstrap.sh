@@ -27,7 +27,7 @@ echo
 echo "Ready."
 echo "Next commands:"
 echo "  npm run db:up"
-echo "  npm run db:migrate -- --name init_catalog"
+echo "  npm run db:migrate -- --name deterministic_inventory"
 echo "  npm run db:seed"
 echo "  npm run dev"
 echo "  npm run lint"
