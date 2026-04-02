@@ -1,10 +1,11 @@
 import { prisma } from '../prisma/client.ts';
 
 async function main() {
-  const [productCount, supplierCount, assetCount, stockMovementCount, rateCardCount] = await prisma.$transaction([
+  const [productCount, supplierCount, assetCount, purchaseOrderCount, stockMovementCount, rateCardCount] = await prisma.$transaction([
     prisma.product.count(),
     prisma.supplier.count(),
     prisma.productAsset.count(),
+    prisma.purchaseOrder.count(),
     prisma.stockMovement.count(),
     prisma.logisticsRateCard.count(),
   ]);
@@ -16,6 +17,7 @@ async function main() {
         products: productCount,
         suppliers: supplierCount,
         assets: assetCount,
+        purchaseOrders: purchaseOrderCount,
         stockMovements: stockMovementCount,
         logisticsRateCards: rateCardCount,
       },

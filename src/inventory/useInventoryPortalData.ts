@@ -11,6 +11,7 @@ import {
 import type {
   CreateInventoryProductInput,
   CreatePriceListImportInput,
+  InventoryAssetRole,
   InventoryDashboardSnapshot,
   InventoryProductDetail,
   InventoryProductSummary,
@@ -25,7 +26,10 @@ export interface InventoryUiProduct {
   sku: string;
   category: string;
   productType: string;
+  finish?: string | null;
+  collection?: string | null;
   status: 'Active' | 'Draft' | 'Archived' | 'Out of Stock';
+  publishStatus: 'Not Ready' | 'Ready' | 'Published';
   stock: number;
   minStock: number;
   price: number;
@@ -39,25 +43,55 @@ export interface InventoryUiProduct {
   publishReadiness: number;
   blockers: string[];
   img: string;
+  supplierName?: string;
+  availabilityStatus: 'Ready to Procure' | 'Supplier Delayed' | 'Supplier Onboarding' | 'Missing Supplier';
+  leadTimeLabel: string;
+  procurementMode: 'Dropship';
+  procurementTrigger: 'Quote Paid';
+  description: string;
+  dimensions: {
+    lengthMm: number;
+    widthMm: number;
+    heightMm: number;
+    weightKg: number;
+    coverageOrientation: string;
+    faceAreaM2: number;
+    unitsPerM2: number;
+  };
   media: {
     id: string;
-    role: 'hero' | 'gallery' | 'face_texture' | 'detail_texture' | 'installation' | 'cutout' | 'quote_render' | 'marketing_variant' | '3d_texture_set' | 'model_reference';
+    role: InventoryAssetRole;
     url: string;
     status: 'Ready' | 'Pending' | 'Missing';
-    type: 'Image' | 'Video' | '3D Asset';
+    type: 'Image' | 'Video' | '2.5D Asset' | '3D Asset';
+    source: string;
   }[];
   specs: Record<string, string>;
-  history: { date: string; action: string; user: string }[];
+  history: { date: string; action: string; user: string; details?: string }[];
 }
 
 export interface InventoryUiAsset {
   id: string;
   name: string;
-  type: 'Image' | 'Video' | '3D Asset' | '3D Render' | 'Model';
+  type: 'Image' | 'Video' | '2.5D Asset' | '3D Asset' | '3D Render' | 'Model';
   protectionLevel: 'Protected Original' | 'Managed Variant' | 'Publishable Variant';
   size: string;
   status: 'Draft' | 'Review' | 'Approved' | 'Archived' | 'Restricted';
-  usage: ('Hero' | 'Gallery' | 'Installation' | 'Detail' | 'Campaign' | '3D Ready' | 'Model' | 'Render' | 'Publishable Variant')[];
+  role:
+    | 'primary_image'
+    | 'gallery_image'
+    | 'face_image'
+    | 'hero_image'
+    | 'asset_2_5d'
+    | 'asset_3d'
+    | 'project_image'
+    | 'generated_image'
+    | 'gallery_extra'
+    | 'installation'
+    | 'detail'
+    | 'campaign';
+  source: string;
+  usage: string[];
   img: string;
   parentId?: string;
   productId?: string;
@@ -69,7 +103,7 @@ export interface InventoryUiAsset {
   campaignId?: string;
   campaignName?: string;
   tags: string[];
-  workflowNode?: 'asset.uploaded' | 'variant.generated' | 'creative.approved';
+  workflowNode?: string;
   pipeline?: {
     sourceUploaded: boolean;
     textureReady: boolean;
@@ -81,20 +115,6 @@ export interface InventoryUiAsset {
   backgroundTransparent?: boolean;
 }
 
-function mapMediaRole(usage: string[]): InventoryUiProduct['media'][number]['role'] {
-  const joined = usage.join(' ').toLowerCase();
-  if (joined.includes('hero')) return 'hero';
-  if (joined.includes('model reference')) return 'model_reference';
-  if (joined.includes('installation') || joined.includes('render')) return 'installation';
-  if (joined.includes('detail texture')) return 'detail_texture';
-  if (joined.includes('face texture')) return 'face_texture';
-  if (joined.includes('gallery')) return 'gallery';
-  if (joined.includes('quote')) return 'quote_render';
-  if (joined.includes('marketing')) return 'marketing_variant';
-  if (joined.includes('3d') || joined.includes('pbr') || joined.includes('model')) return '3d_texture_set';
-  return 'gallery';
-}
-
 function mapMediaStatus(status: string): InventoryUiProduct['media'][number]['status'] {
   if (status === 'Approved') return 'Ready';
   if (status === 'Restricted') return 'Missing';
@@ -103,6 +123,7 @@ function mapMediaStatus(status: string): InventoryUiProduct['media'][number]['st
 
 function mapMediaType(type: string): InventoryUiProduct['media'][number]['type'] {
   if (type === 'Video') return 'Video';
+  if (type === '2.5D Asset') return '2.5D Asset';
   if (type === '3D Asset' || type === '3D Render' || type === 'Model') return '3D Asset';
   return 'Image';
 }
@@ -112,14 +133,17 @@ function mapProduct(detail: InventoryProductDetail): InventoryUiProduct {
     id: detail.id,
     recordId: detail.recordId,
     name: detail.name,
-    sku: detail.sku,
-    category: detail.commercialCategory,
+    sku: detail.publicSku,
+    category: detail.category,
     productType: detail.productType,
+    finish: detail.finish,
+    collection: detail.collection,
     status: detail.status,
+    publishStatus: detail.publishStatus,
     stock: detail.stockPosition.onHand,
     minStock: detail.stockPosition.reorderPoint,
-    price: detail.sellPrice,
-    cost: detail.costPrice,
+    price: detail.sellPriceZar,
+    cost: detail.costPriceZar,
     margin: `${detail.marginPercent}%`,
     suppliersCount: detail.supplierCount,
     catalogHealth: detail.readiness.catalogHealth,
@@ -129,41 +153,40 @@ function mapProduct(detail: InventoryProductDetail): InventoryUiProduct {
     publishReadiness: detail.readiness.publishReadiness,
     blockers: detail.readiness.blockers,
     img: detail.primaryImageUrl,
+    supplierName: detail.stockPosition.linkedSupplierName,
+    availabilityStatus: detail.stockPosition.availabilityStatus,
+    leadTimeLabel: detail.stockPosition.leadTimeLabel ?? 'TBD',
+    procurementMode: detail.stockPosition.mode,
+    procurementTrigger: detail.stockPosition.procurementTrigger,
+    description: detail.description,
+    dimensions: {
+      lengthMm: detail.dimensions.lengthMm,
+      widthMm: detail.dimensions.widthMm,
+      heightMm: detail.dimensions.heightMm,
+      weightKg: detail.dimensions.weightKg,
+      coverageOrientation: detail.dimensions.coverageOrientation,
+      faceAreaM2: detail.dimensions.faceAreaM2,
+      unitsPerM2: detail.dimensions.unitsPerM2,
+    },
     media: detail.media.map((media) => ({
       id: media.id,
-      role: mapMediaRole(media.usage),
+      role: media.role,
       url: media.img,
       status: mapMediaStatus(media.status),
       type: mapMediaType(media.type),
+      source: media.source,
     })),
     specs: detail.specifications,
     history: detail.history.map((item) => ({
       date: item.date,
       action: item.action,
       user: item.user,
+      details: item.details,
     })),
   };
 }
 
-function mapAssetUsage(usage: string) {
-  const normalized = usage.trim().toLowerCase();
-
-  if (normalized.includes('hero')) return 'Hero' as const;
-  if (normalized.includes('gallery')) return 'Gallery' as const;
-  if (normalized.includes('installation')) return 'Installation' as const;
-  if (normalized.includes('campaign')) return 'Campaign' as const;
-  if (normalized.includes('publishable')) return 'Publishable Variant' as const;
-  if (normalized.includes('3d')) return '3D Ready' as const;
-  if (normalized.includes('model')) return 'Model' as const;
-  if (normalized.includes('render')) return 'Render' as const;
-  return 'Detail' as const;
-}
-
 function mapAsset(detail: InventoryProductDetail, asset: InventoryProductDetail['media'][number]): InventoryUiAsset {
-  const workflowNode = asset.workflowNode === 'asset.uploaded' || asset.workflowNode === 'variant.generated' || asset.workflowNode === 'creative.approved'
-    ? asset.workflowNode
-    : undefined;
-
   return {
     id: asset.id,
     name: asset.name,
@@ -171,7 +194,9 @@ function mapAsset(detail: InventoryProductDetail, asset: InventoryProductDetail[
     protectionLevel: asset.protectionLevel,
     size: asset.size,
     status: asset.status,
-    usage: asset.usage.map((usage) => mapAssetUsage(usage)),
+    role: asset.role,
+    source: asset.source,
+    usage: asset.usage,
     img: asset.img,
     parentId: asset.parentId,
     productId: detail.id,
@@ -183,7 +208,7 @@ function mapAsset(detail: InventoryProductDetail, asset: InventoryProductDetail[
     campaignId: asset.campaignId,
     campaignName: asset.campaignName,
     tags: asset.tags,
-    workflowNode,
+    workflowNode: asset.workflowNode,
     pipeline: asset.pipeline,
     watermarkProfile: asset.watermarkProfile,
     backgroundTransparent: asset.backgroundTransparent,

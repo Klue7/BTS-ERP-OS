@@ -20,12 +20,62 @@ enum ProductPublishStatus {
   PUBLISHED
 }
 
+enum ProductCategory {
+  CLADDING
+  BRICKS
+  PAVING
+  BLOCKS
+}
+
 enum ProductType {
-  BRICK
-  TILE
-  PAVER
-  STONE
-  SLAB
+  CLASSIC
+  MODERN
+  NATURAL
+  PREMIUM
+  NFP
+  NFX
+  FBA
+  FBS
+  FBX
+  MAXI
+  BEVEL
+  SPLIT_BEVEL
+  INTERLOCKING
+  CEMENT
+  BREEZE
+  CLAY
+}
+
+enum ProductFinish {
+  TRAVERTINE
+  RIBBED
+  SMOOTH
+  SATIN
+  RUSTIC
+  VARIATION
+}
+
+enum InventoryMode {
+  DROPSHIP
+}
+
+enum ProductAvailabilityStatus {
+  READY_TO_PROCURE
+  SUPPLIER_DELAYED
+  SUPPLIER_ONBOARDING
+  MISSING_SUPPLIER
+}
+
+enum PricingUnit {
+  M2
+  PIECE
+  PALLET
+}
+
+enum CoverageOrientation {
+  LENGTH_X_WIDTH
+  LENGTH_X_HEIGHT
+  WIDTH_X_HEIGHT
 }
 
 enum SupplierStatus {
@@ -51,6 +101,7 @@ enum LocationType {
 enum AssetType {
   IMAGE
   VIDEO
+  TWO_POINT_FIVE_D_ASSET
   THREE_D_ASSET
   THREE_D_RENDER
   MODEL
@@ -70,22 +121,27 @@ enum AssetApprovalStatus {
   RESTRICTED
 }
 
+enum AssetSource {
+  DIRECT_UPLOAD
+  ASSET_LIBRARY
+  MARKETING_TOOL
+  COMMUNITY_SUBMISSION
+  STUDIO_PUBLISHED
+}
+
 enum AssetRole {
-  HERO
-  GALLERY
+  PRIMARY_IMAGE
+  GALLERY_IMAGE
+  FACE_IMAGE
+  HERO_IMAGE
+  ASSET_2_5D
+  ASSET_3D
+  PROJECT_IMAGE
+  GENERATED_IMAGE
+  GALLERY_EXTRA
   INSTALLATION
   DETAIL
   CAMPAIGN
-  THREE_D_READY
-  MODEL
-  PUBLISHABLE_VARIANT
-  FACE_TEXTURE
-  DETAIL_TEXTURE
-  QUOTE_RENDER
-  MARKETING_VARIANT
-  MODEL_REFERENCE
-  RENDER
-  PBR_TEXTURE
 }
 
 enum StockMovementType {
@@ -138,35 +194,44 @@ enum ProductHistoryEventType {
   STOCK_UPDATED
   PRICE_ADJUSTED
   STATUS_CHANGED
-  ASSET_APPROVED
-  LOW_STOCK_ALERT
-  CAMPAIGN_LINKED
+  ASSET_ATTACHED
+  PROCUREMENT_TRIGGERED
   IMPORT_APPLIED
 }
 
 model Product {
-  id                      String                   @id @default(uuid())
-  referenceId             String                   @unique
-  sku                     String                   @unique
+  id                      String                    @id @default(uuid())
+  referenceId             String                    @unique
+  publicSku               String                    @unique
   name                    String
+  category                ProductCategory
   productType             ProductType
-  commercialCategory      String
+  finish                  ProductFinish?
   collectionName          String?
   presentationTags        String[]
-  lifecycleStatus         ProductLifecycleStatus   @default(DRAFT)
-  publishStatus           ProductPublishStatus     @default(NOT_READY)
-  unit                    String                   @default("m2")
-  baseSellPrice           Decimal                  @db.Decimal(10, 2)
-  currency                String                   @default("GBP")
-  primaryImageUrl         String
+  lifecycleStatus         ProductLifecycleStatus    @default(DRAFT)
+  publishStatus           ProductPublishStatus      @default(NOT_READY)
+  inventoryMode           InventoryMode             @default(DROPSHIP)
+  availabilityStatus      ProductAvailabilityStatus @default(MISSING_SUPPLIER)
+  pricingUnit             PricingUnit               @default(M2)
+  sellPriceZar            Decimal?                  @db.Decimal(10, 2)
+  primaryImageUrl         String?
+  galleryImageUrl         String?
+  faceImageUrl            String?
+  heroImageUrl            String?
   description             String
   marketingCopy           String?
   technicalSpecifications Json
-  dimensionsText          String?
-  weightKg                Decimal?                 @db.Decimal(10, 2)
-  reorderPoint            Int                      @default(0)
-  createdAt               DateTime                 @default(now())
-  updatedAt               DateTime                 @updatedAt
+  lengthMm                Int?
+  widthMm                 Int?
+  heightMm                Int?
+  coverageOrientation     CoverageOrientation?
+  faceAreaM2              Decimal?                  @db.Decimal(10, 4)
+  unitsPerM2              Decimal?                  @db.Decimal(10, 4)
+  weightKg                Decimal?                  @db.Decimal(10, 3)
+  reorderPoint            Int                       @default(0)
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
   productSuppliers        ProductSupplier[]
   stockMovements          StockMovement[]
   purchaseOrderLines      PurchaseOrderLine[]
@@ -176,9 +241,10 @@ model Product {
   logisticsQuotes         LogisticsQuoteSnapshot[]
   assetLinks              AssetLink[]
 
+  @@index([category])
   @@index([productType])
-  @@index([commercialCategory])
   @@index([lifecycleStatus])
+  @@index([availabilityStatus])
 }
 
 model Supplier {
@@ -240,8 +306,7 @@ model ProductSupplier {
   supplierId           String
   originLocationId     String
   isDefault            Boolean             @default(false)
-  unitCost             Decimal             @db.Decimal(10, 2)
-  currency             String              @default("GBP")
+  unitCostZar          Decimal             @db.Decimal(10, 2)
   leadTimeDays         Int?
   minimumOrderQuantity Int?
   paymentTerms         String?
@@ -282,7 +347,9 @@ model PurchaseOrder {
   supplierId       String
   originLocationId String
   status           PurchaseOrderStatus
-  currency         String              @default("GBP")
+  currency         String              @default("ZAR")
+  triggerSource    String?
+  triggerReference String?
   orderedAt        DateTime
   confirmedAt      DateTime?
   deliveredAt      DateTime?
@@ -302,8 +369,8 @@ model PurchaseOrderLine {
   purchaseOrderId String
   productId       String
   quantity        Int
-  unitCost        Decimal       @db.Decimal(10, 2)
-  totalCost       Decimal       @db.Decimal(12, 2)
+  unitCostZar     Decimal       @db.Decimal(10, 2)
+  totalCostZar    Decimal       @db.Decimal(12, 2)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
@@ -340,31 +407,40 @@ model PriceListImportBatch {
 }
 
 model PriceListImportRow {
-  id                 String               @id @default(uuid())
-  batchId            String
-  rowNumber          Int
-  sku                String
-  name               String
-  productTypeLabel   String
-  commercialCategory String
-  collectionName     String?
-  description        String?
-  sellPrice          Decimal?             @db.Decimal(10, 2)
-  unitCost           Decimal?             @db.Decimal(10, 2)
-  currency           String?
-  unit               String?
-  tags               String[]
-  rawData            Json
-  actionTaken        String?
-  errorMessage       String?
-  appliedProductId   String?
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  batch              PriceListImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  product            Product?             @relation(fields: [appliedProductId], references: [id], onDelete: SetNull)
+  id               String               @id @default(uuid())
+  batchId          String
+  rowNumber        Int
+  publicSku        String
+  name             String
+  categoryLabel    String
+  productTypeLabel String
+  finishLabel      String?
+  collectionName   String?
+  description      String?
+  sellPriceZar     Decimal?             @db.Decimal(10, 2)
+  unitCostZar      Decimal?             @db.Decimal(10, 2)
+  linkedSupplierKey String?
+  pricingUnit      String?
+  lengthMm         Int?
+  widthMm          Int?
+  heightMm         Int?
+  weightKg         Decimal?             @db.Decimal(10, 3)
+  primaryImageUrl  String?
+  galleryImageUrl  String?
+  faceImageUrl     String?
+  heroImageUrl     String?
+  tags             String[]
+  rawData          Json
+  actionTaken      String?
+  errorMessage     String?
+  appliedProductId String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  batch            PriceListImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  product          Product?             @relation(fields: [appliedProductId], references: [id], onDelete: SetNull)
 
   @@index([batchId, rowNumber])
-  @@index([sku])
+  @@index([publicSku])
 }
 
 model ProductAsset {
@@ -373,6 +449,7 @@ model ProductAsset {
   primaryProductId      String?
   name                  String
   assetType             AssetType
+  assetSource           AssetSource          @default(DIRECT_UPLOAD)
   protectionLevel       AssetProtectionLevel
   approvalStatus        AssetApprovalStatus
   sizeLabel             String
@@ -432,7 +509,7 @@ model LogisticsRateCard {
   rateKey          String                   @unique
   supplierId       String
   originLocationId String
-  currency         String                   @default("GBP")
+  currency         String                   @default("ZAR")
   costPerKm        Decimal                  @db.Decimal(10, 2)
   sellPricePerKm   Decimal                  @db.Decimal(10, 2)
   fixedFee         Decimal                  @db.Decimal(10, 2)
@@ -462,7 +539,7 @@ model LogisticsQuoteSnapshot {
   minimumCharge      Decimal             @db.Decimal(10, 2)
   logisticsCost      Decimal             @db.Decimal(10, 2)
   logisticsSellPrice Decimal             @db.Decimal(10, 2)
-  currency           String              @default("GBP")
+  currency           String              @default("ZAR")
   createdAt          DateTime            @default(now())
   product            Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
   supplier           Supplier            @relation(fields: [supplierId], references: [id], onDelete: Cascade)

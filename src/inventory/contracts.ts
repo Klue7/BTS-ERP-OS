@@ -1,32 +1,68 @@
+export const inventoryCategoryOptions = ['Cladding', 'Bricks', 'Paving', 'Blocks'] as const;
+export type InventoryCategory = (typeof inventoryCategoryOptions)[number];
+
+export const inventoryProductTypeOptionsByCategory = {
+  Cladding: ['Classic', 'Modern', 'Natural', 'Premium'],
+  Bricks: ['NFP', 'NFX', 'FBA', 'FBS', 'FBX', 'Maxi'],
+  Paving: ['Bevel', 'Split-Bevel', 'Interlocking'],
+  Blocks: ['Cement', 'Breeze', 'Clay'],
+} as const satisfies Record<InventoryCategory, readonly string[]>;
+
+export type InventoryProductType =
+  | (typeof inventoryProductTypeOptionsByCategory.Cladding)[number]
+  | (typeof inventoryProductTypeOptionsByCategory.Bricks)[number]
+  | (typeof inventoryProductTypeOptionsByCategory.Paving)[number]
+  | (typeof inventoryProductTypeOptionsByCategory.Blocks)[number];
+
+export const inventoryFinishOptions = ['Travertine', 'Ribbed', 'Smooth', 'Satin', 'Rustic', 'Variation'] as const;
+export type InventoryFinish = (typeof inventoryFinishOptions)[number];
+
+export const pricingUnitOptions = ['m2', 'piece', 'pallet'] as const;
+export type InventoryPricingUnit = (typeof pricingUnitOptions)[number];
+
+export const coverageOrientationOptions = ['Length x Width', 'Length x Height', 'Width x Height'] as const;
+export type CoverageOrientation = (typeof coverageOrientationOptions)[number];
+
+export const inventoryAssetSourceOptions = [
+  'Direct Upload',
+  'Asset Library',
+  'Marketing Tool',
+  'Community Submission',
+  'Studio Published',
+] as const;
+export type InventoryAssetSource = (typeof inventoryAssetSourceOptions)[number];
+
 export type InventoryLifecycleStatus = 'Active' | 'Draft' | 'Archived' | 'Out of Stock';
 export type InventoryPublishStatus = 'Not Ready' | 'Ready' | 'Published';
 export type InventoryAssetStatus = 'Draft' | 'Review' | 'Approved' | 'Archived' | 'Restricted';
-export type InventoryAssetType = 'Image' | 'Video' | '3D Asset' | '3D Render' | 'Model';
+export type InventoryAssetType = 'Image' | 'Video' | '2.5D Asset' | '3D Asset' | '3D Render' | 'Model';
 export type InventoryAssetProtectionLevel = 'Protected Original' | 'Managed Variant' | 'Publishable Variant';
+export type InventoryAvailabilityStatus = 'Ready to Procure' | 'Supplier Delayed' | 'Supplier Onboarding' | 'Missing Supplier';
+export type InventoryProcurementTrigger = 'Quote Paid';
 export type InventoryAssetRole =
-  | 'hero'
-  | 'gallery'
+  | 'primary_image'
+  | 'gallery_image'
+  | 'face_image'
+  | 'hero_image'
+  | 'asset_2_5d'
+  | 'asset_3d'
+  | 'project_image'
+  | 'generated_image'
+  | 'gallery_extra'
   | 'installation'
   | 'detail'
-  | 'campaign'
-  | '3d_ready'
-  | 'model'
-  | 'publishable_variant'
-  | 'face_texture'
-  | 'detail_texture'
-  | 'quote_render'
-  | 'marketing_variant'
-  | 'model_reference'
-  | 'render'
-  | 'pbr_texture';
+  | 'campaign';
 
 export interface ReadinessChecklist {
+  primaryImage: boolean;
+  galleryImage: boolean;
+  faceImage: boolean;
   heroImage: boolean;
-  technicalSpecs: boolean;
-  threeDModel: boolean;
-  marketingCopy: boolean;
-  installationGallery: boolean;
+  calculatorData: boolean;
   supplierLinkage: boolean;
+  pricing: boolean;
+  asset2_5d: boolean;
+  asset3d: boolean;
 }
 
 export interface ReadinessSnapshot {
@@ -110,6 +146,8 @@ export interface InventoryAssetSummary {
   id: string;
   name: string;
   type: InventoryAssetType;
+  role: InventoryAssetRole;
+  source: InventoryAssetSource;
   protectionLevel: InventoryAssetProtectionLevel;
   size: string;
   status: InventoryAssetStatus;
@@ -137,29 +175,54 @@ export interface InventoryAssetSummary {
   backgroundTransparent?: boolean;
 }
 
+export interface ProductDimensions {
+  lengthMm: number;
+  widthMm: number;
+  heightMm: number;
+  weightKg: number;
+  coverageOrientation: CoverageOrientation;
+  faceAreaM2: number;
+  unitsPerM2: number;
+}
+
 export interface StockPosition {
   productId: string;
+  mode: 'Dropship';
   onHand: number;
   reserved: number;
   available: number;
   reorderPoint: number;
   lowStock: boolean;
   lastMovementAt?: string | null;
+  availabilityStatus: InventoryAvailabilityStatus;
+  linkedSupplierName?: string;
+  leadTimeLabel?: string;
+  procurementTrigger: InventoryProcurementTrigger;
+}
+
+export interface RequiredMediaSnapshot {
+  primaryImageUrl?: string | null;
+  galleryImageUrl?: string | null;
+  faceImageUrl?: string | null;
+  heroImageUrl?: string | null;
 }
 
 export interface InventoryProductSummary {
   id: string;
   recordId: string;
-  sku: string;
+  publicSku: string;
   name: string;
-  productType: string;
-  commercialCategory: string;
+  category: InventoryCategory;
+  productType: InventoryProductType;
+  finish: InventoryFinish | null;
   collection: string | null;
   status: InventoryLifecycleStatus;
+  publishStatus: InventoryPublishStatus;
   stockPosition: StockPosition;
-  sellPrice: number;
-  costPrice: number;
+  sellPriceZar: number;
+  costPriceZar: number;
   marginPercent: number;
+  pricingUnit: InventoryPricingUnit;
   primaryImageUrl: string;
   readiness: ReadinessSnapshot;
   supplierCount: number;
@@ -170,6 +233,8 @@ export interface InventoryProductDetail extends InventoryProductSummary {
   description: string;
   marketingCopy: string;
   specifications: Record<string, string>;
+  dimensions: ProductDimensions;
+  requiredMedia: RequiredMediaSnapshot;
   media: InventoryAssetSummary[];
   suppliers: SupplierSummary[];
   history: {
@@ -180,11 +245,11 @@ export interface InventoryProductDetail extends InventoryProductSummary {
     details?: string;
   }[];
   pricing: {
-    unit: string;
-    sellPrice: number;
-    costPrice: number;
+    unit: InventoryPricingUnit;
+    sellPriceZar: number;
+    costPriceZar: number;
     marginPercent: number;
-    currency: string;
+    currency: 'ZAR';
   };
   logistics: {
     defaultSupplierId?: string;
@@ -193,26 +258,28 @@ export interface InventoryProductDetail extends InventoryProductSummary {
     sellPricePerKm?: number;
     fixedFee?: number;
     minimumCharge?: number;
-    currency: string;
+    currency: 'ZAR';
   };
 }
 
 export interface InventoryDashboardSnapshot {
   summary: {
     totalProducts: number;
-    lowStockCount: number;
+    supplierAlertCount: number;
     globalCatalogHealth: number;
     globalAssetReadiness: number;
     globalThreedReadiness: number;
     globalMarketingReadiness: number;
     globalPublishReadiness: number;
   };
-  lowStockAlerts: {
+  availabilityAlerts: {
     id: string;
     name: string;
-    stock: number;
-    min: number;
-    status: 'Critical' | 'Low';
+    supplierName?: string;
+    leadTime?: string;
+    status: Exclude<InventoryAvailabilityStatus, 'Ready to Procure'>;
+    message: string;
+    severity: 'Critical' | 'Warning';
   }[];
   assetCoverage: {
     id: string;
@@ -223,7 +290,7 @@ export interface InventoryDashboardSnapshot {
     renders: number;
     health: 'Excellent' | 'Good' | 'Needs Assets' | 'Missing All';
   }[];
-  velocitySeries: {
+  procurementSeries: {
     label: string;
     current: number;
     predicted: number;
@@ -240,16 +307,25 @@ export interface InventoryDashboardSnapshot {
 }
 
 export interface PriceListImportRowInput {
-  sku: string;
+  publicSku: string;
   name: string;
+  category: InventoryCategory | string;
   productType: string;
-  commercialCategory: string;
+  finish?: InventoryFinish | string | null;
   collection?: string;
   description?: string;
-  sellPrice?: number;
-  unitCost?: number;
-  currency?: string;
-  unit?: string;
+  sellPriceZar?: number;
+  unitCostZar?: number;
+  linkedSupplierId?: string;
+  pricingUnit?: InventoryPricingUnit | string;
+  lengthMm?: number;
+  widthMm?: number;
+  heightMm?: number;
+  weightKg?: number;
+  primaryImageUrl?: string;
+  galleryImageUrl?: string;
+  faceImageUrl?: string;
+  heroImageUrl?: string;
   tags?: string[];
 }
 
@@ -280,36 +356,61 @@ export interface LogisticsQuote {
   minimumCharge: number;
   logisticsCost: number;
   logisticsSellPrice: number;
-  currency: string;
+  currency: 'ZAR';
   createdAt: string;
+}
+
+export interface AssetSlotInput {
+  url: string;
+  source?: InventoryAssetSource;
+  name?: string;
 }
 
 export interface CreateInventoryProductInput {
   name: string;
-  sku: string;
-  productType: string;
-  commercialCategory: string;
+  publicSku: string;
+  category: InventoryCategory;
+  productType: InventoryProductType;
+  finish?: InventoryFinish | null;
+  collection?: string | null;
   description: string;
-  sellPrice?: number;
-  unit?: string;
-  dimensions?: string;
-  weightKg?: number;
-  reorderPoint?: number;
-  initialStock?: number;
-  supplierId?: string;
+  linkedSupplierId: string;
+  unitCostZar: number;
+  sellPriceZar?: number;
+  pricingUnit?: InventoryPricingUnit;
+  tags?: string[];
+  dimensions: {
+    lengthMm: number;
+    widthMm: number;
+    heightMm: number;
+    weightKg: number;
+    coverageOrientation: CoverageOrientation;
+  };
+  primaryImage: AssetSlotInput;
+  galleryImage: AssetSlotInput;
+  faceImage: AssetSlotInput;
+  heroImage?: AssetSlotInput;
+  asset2_5d?: AssetSlotInput;
+  asset3d?: AssetSlotInput;
+  projectImages?: AssetSlotInput[];
+  generatedImages?: AssetSlotInput[];
+  galleryImages?: AssetSlotInput[];
 }
 
 export interface UpdateInventoryProductInput {
   name?: string;
-  commercialCategory?: string;
+  category?: InventoryCategory;
+  productType?: InventoryProductType;
+  finish?: InventoryFinish | null;
   collection?: string | null;
   description?: string;
   marketingCopy?: string;
-  sellPrice?: number;
+  sellPriceZar?: number | null;
   publishStatus?: InventoryPublishStatus;
   status?: InventoryLifecycleStatus;
-  reorderPoint?: number;
+  linkedSupplierId?: string;
   specifications?: Record<string, string>;
+  dimensions?: Partial<CreateInventoryProductInput['dimensions']>;
 }
 
 export interface CreateInventoryAssetInput {
@@ -318,6 +419,7 @@ export interface CreateInventoryAssetInput {
   type: InventoryAssetType;
   role: InventoryAssetRole;
   imageUrl: string;
+  source?: InventoryAssetSource;
   status?: InventoryAssetStatus;
   protectionLevel?: InventoryAssetProtectionLevel;
   linkedCampaignIds?: string[];

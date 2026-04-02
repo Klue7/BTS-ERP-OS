@@ -120,13 +120,30 @@ import { motion, AnimatePresence } from 'motion/react';
 import { CRMProjectsTenders } from './CRMProjectsTenders';
 import { MarketingCommunityFeed } from './MarketingCommunityFeed';
 import { useInventoryPortalData } from '../inventory/useInventoryPortalData';
-import type { InventoryDashboardSnapshot } from '../inventory/contracts';
+import {
+  coverageOrientationOptions,
+  inventoryCategoryOptions,
+  inventoryFinishOptions,
+  inventoryProductTypeOptionsByCategory,
+  pricingUnitOptions,
+} from '../inventory/contracts';
+import type {
+  CoverageOrientation,
+  CreateInventoryProductInput,
+  CreatePriceListImportInput,
+  InventoryDashboardSnapshot,
+  InventoryAssetSource,
+  InventoryCategory,
+  InventoryFinish,
+  InventoryPricingUnit,
+  InventoryProductType,
+} from '../inventory/contracts';
 
 // --- Types & Interfaces ---
 
 type AssetStatus = 'Draft' | 'Review' | 'Approved' | 'Archived' | 'Restricted';
 type AssetUsage = 'Hero' | 'Gallery' | 'Installation' | 'Detail' | 'Campaign' | '3D Ready' | 'Model' | 'Render' | 'Publishable Variant';
-type AssetType = 'Image' | 'Video' | '3D Asset' | '3D Render' | 'Model';
+type AssetType = 'Image' | 'Video' | '2.5D Asset' | '3D Asset' | '3D Render' | 'Model';
 type ProtectionLevel = 'Protected Original' | 'Managed Variant' | 'Publishable Variant';
 
 // --- CRM & Comms Types ---
@@ -209,7 +226,7 @@ interface Asset {
  protectionLevel: ProtectionLevel;
  size: string;
  status: AssetStatus;
- usage: AssetUsage[];
+ usage: string[];
  img: string;
  parentId?: string;
  productId?: string;
@@ -221,7 +238,7 @@ interface Asset {
  campaignId?: string;
  campaignName?: string;
  tags: string[];
- workflowNode?: 'asset.uploaded' | 'variant.generated' | 'creative.approved';
+ workflowNode?: string;
  pipeline?: {
  sourceUploaded: boolean;
  textureReady: boolean;
@@ -542,10 +559,32 @@ const MOCK_CAMPAIGN_PERFORMANCE: CampaignPerformance[] = [
 
 interface ProductMedia {
   id: string;
-  role: 'hero' | 'gallery' | 'face_texture' | 'detail_texture' | 'installation' | 'cutout' | 'quote_render' | 'marketing_variant' | '3d_texture_set' | 'model_reference';
+  role:
+    | 'hero'
+    | 'gallery'
+    | 'face_texture'
+    | 'detail_texture'
+    | 'installation'
+    | 'cutout'
+    | 'quote_render'
+    | 'marketing_variant'
+    | '3d_texture_set'
+    | 'model_reference'
+    | 'primary_image'
+    | 'gallery_image'
+    | 'face_image'
+    | 'hero_image'
+    | 'asset_2_5d'
+    | 'asset_3d'
+    | 'project_image'
+    | 'generated_image'
+    | 'gallery_extra'
+    | 'detail'
+    | 'campaign';
   url: string;
   status: 'Ready' | 'Pending' | 'Missing';
-  type: 'Image' | 'Video' | '3D Asset';
+  type: 'Image' | 'Video' | '2.5D Asset' | '3D Asset';
+  source?: string;
 }
 
 interface Vendor {
@@ -610,7 +649,10 @@ interface Product {
   sku: string;
   category: string;
   productType?: string;
+  finish?: string | null;
+  collection?: string | null;
   status: 'Active' | 'Draft' | 'Archived' | 'Out of Stock';
+  publishStatus?: 'Not Ready' | 'Ready' | 'Published';
   stock: number;
   minStock: number;
   price: number;
@@ -624,9 +666,24 @@ interface Product {
   publishReadiness: number; // 0-100
   blockers: string[];
   img: string;
+  supplierName?: string;
+  availabilityStatus?: 'Ready to Procure' | 'Supplier Delayed' | 'Supplier Onboarding' | 'Missing Supplier';
+  leadTimeLabel?: string;
+  procurementMode?: 'Dropship';
+  procurementTrigger?: 'Quote Paid';
+  description?: string;
+  dimensions?: {
+    lengthMm: number;
+    widthMm: number;
+    heightMm: number;
+    weightKg: number;
+    coverageOrientation: string;
+    faceAreaM2: number;
+    unitsPerM2: number;
+  };
   media: ProductMedia[];
   specs: Record<string, string>;
-  history: { date: string; action: string; user: string }[];
+  history: { date: string; action: string; user: string; details?: string }[];
 }
 
 const MOCK_PRODUCTS: Product[] = [
@@ -1186,11 +1243,11 @@ const InventoryCatalog = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
 
-  const categories = ['All', 'Brick', 'Tile', 'Luxury', 'Stone', 'Paver'];
+  const categories = ['All', ...inventoryCategoryOptions];
 
   const filteredProducts = products.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.sku.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = activeCategory === 'All' || p.category === activeCategory || p.productType === activeCategory;
+    const matchesCategory = activeCategory === 'All' || p.category === activeCategory;
     return matchesSearch && matchesCategory;
   });
 
@@ -1200,7 +1257,7 @@ const InventoryCatalog = ({
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
           <h2 className="text-2xl font-medium text-white tracking-tight">Product Catalog</h2>
-          <p className="text-sm text-white/40 mt-1">Manage your deterministic product data and media assets.</p>
+          <p className="text-sm text-white/40 mt-1">Manage supplier-backed product data, calculator dimensions, and deterministic media slots.</p>
         </div>
         <div className="flex gap-3">
           <button 
@@ -1283,9 +1340,14 @@ const InventoryCatalog = ({
             <div className="p-5 space-y-4 flex-1 flex flex-col">
               <div>
                 <h3 className="text-sm font-medium text-white group-hover:text-[#00ff88] transition-colors">{product.name}</h3>
+                <div className="text-[10px] font-mono text-white/30 uppercase tracking-widest mt-1">
+                  {product.productType}{product.finish ? ` · ${product.finish}` : ''}{product.collection ? ` · ${product.collection}` : ''}
+                </div>
                 <div className="flex justify-between items-center mt-2">
-                  <span className="text-xs text-white/40">Stock: <span className={product.stock < product.minStock ? 'text-rose-400' : 'text-white/60'}>{product.stock} units</span></span>
-                  <span className="text-sm font-medium text-white">£{product.price.toFixed(2)}</span>
+                  <span className={`text-xs ${product.availabilityStatus === 'Ready to Procure' ? 'text-white/60' : 'text-amber-400'}`}>
+                    {product.availabilityStatus} · {product.leadTimeLabel}
+                  </span>
+                  <span className="text-sm font-medium text-white">R {product.price.toFixed(2)}</span>
                 </div>
               </div>
               
@@ -1295,6 +1357,9 @@ const InventoryCatalog = ({
                     <div className="h-full bg-[#00ff88]" style={{ width: `${product.catalogHealth}%` }} />
                   </div>
                   <span className="text-[9px] font-mono text-white/40 uppercase tracking-widest">{product.catalogHealth}% Health</span>
+                </div>
+                <div className="text-[9px] font-mono text-white/30 uppercase tracking-widest">
+                  {product.supplierName ?? 'Unlinked'}
                 </div>
                 <ChevronRight size={14} className="text-white/20 group-hover:text-[#00ff88] group-hover:translate-x-1 transition-all" />
               </div>
@@ -1419,13 +1484,15 @@ const InventoryDetailDrawer = ({
                   {/* Quick Stats */}
                   <div className="grid grid-cols-3 gap-4">
                     <div className="p-6 bg-white/5 border border-white/10 rounded-2xl">
-                      <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Stock Level</p>
-                      <p className={`text-2xl font-medium ${product.stock < product.minStock ? 'text-rose-400' : 'text-white'}`}>{product.stock}</p>
-                      <p className="text-[10px] text-white/20 mt-1">Min: {product.minStock}</p>
+                      <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Availability</p>
+                      <p className={`text-2xl font-medium ${product.availabilityStatus === 'Ready to Procure' ? 'text-white' : 'text-amber-400'}`}>
+                        {product.availabilityStatus?.replace('Supplier ', '') ?? 'Pending'}
+                      </p>
+                      <p className="text-[10px] text-white/20 mt-1">{product.leadTimeLabel ?? 'Lead time pending'}</p>
                     </div>
                     <div className="p-6 bg-white/5 border border-white/10 rounded-2xl">
                       <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Unit Price</p>
-                      <p className="text-2xl font-medium text-white">£{product.price.toFixed(2)}</p>
+                      <p className="text-2xl font-medium text-white">R {product.price.toFixed(2)}</p>
                       <p className="text-[10px] text-white/20 mt-1">Margin: {product.margin}</p>
                     </div>
                     <div className="p-6 bg-white/5 border border-white/10 rounded-2xl">
@@ -1444,12 +1511,14 @@ const InventoryDetailDrawer = ({
                     </h3>
                     <div className="grid grid-cols-2 gap-6">
                       {[
-                        { label: 'High-Res Hero Image', ready: product.assetReadiness >= 25 },
-                        { label: 'Technical Specifications', ready: true },
-                        { label: '3D Model (PBR)', ready: product.threedReadiness === 100 },
-                        { label: 'Marketing Copy', ready: product.marketingReadiness >= 50 },
-                        { label: 'Installation Gallery', ready: product.assetReadiness >= 75 },
+                        { label: 'Primary Image', ready: product.media.some((item) => item.role === 'primary_image' && item.status === 'Ready') },
+                        { label: 'Gallery Image', ready: product.media.some((item) => item.role === 'gallery_image' && item.status === 'Ready') },
+                        { label: 'Face Image', ready: product.media.some((item) => item.role === 'face_image' && item.status === 'Ready') },
+                        { label: 'Calculator Data', ready: Boolean(product.dimensions?.unitsPerM2) },
+                        { label: '2.5D Asset', ready: product.media.some((item) => item.role === 'asset_2_5d' && item.status === 'Ready') },
+                        { label: '3D Asset', ready: product.media.some((item) => item.role === 'asset_3d' && item.status === 'Ready') },
                         { label: 'Supplier Linkage', ready: product.suppliersCount > 0 },
+                        { label: 'Hero Image', ready: product.media.some((item) => item.role === 'hero_image' && item.status !== 'Missing') || Boolean(product.img) },
                       ].map((item) => (
                         <div key={item.label} className="flex items-center gap-3">
                           <div className={`w-5 h-5 rounded-full flex items-center justify-center ${item.ready ? 'bg-[#00ff88]/20 text-[#00ff88]' : 'bg-white/5 text-white/20'}`}>
@@ -1465,9 +1534,7 @@ const InventoryDetailDrawer = ({
                   <div className="space-y-4">
                     <h3 className="text-sm font-medium text-white">Product Description</h3>
                     <p className="text-sm text-white/60 leading-relaxed">
-                      A premium {product.category.toLowerCase()} product designed for high-end architectural applications. 
-                      Crafted from {product.specs.Material.toLowerCase()} with a {product.specs.Finish.toLowerCase()} finish, 
-                      this item represents the pinnacle of BTS quality standards.
+                      {product.description ?? `A ${product.category.toLowerCase()} product shaped for supplier-backed procurement and deterministic calculator behaviour.`}
                     </p>
                   </div>
                 </div>
@@ -1804,43 +1871,168 @@ export function EmployeePortal() {
  );
 }
 
+type AddProductWizardState = {
+  name: string;
+  publicSku: string;
+  category: InventoryCategory;
+  productType: InventoryProductType;
+  finish: InventoryFinish | '';
+  collection: string;
+  description: string;
+  supplierId: string;
+  unitCostZar: string;
+  sellPriceZar: string;
+  pricingUnit: InventoryPricingUnit;
+  lengthMm: string;
+  widthMm: string;
+  heightMm: string;
+  weightKg: string;
+  coverageOrientation: CoverageOrientation;
+  primaryImageUrl: string;
+  galleryImageUrl: string;
+  faceImageUrl: string;
+  heroImageUrl: string;
+  asset25dUrl: string;
+  asset25dSource: InventoryAssetSource;
+  asset3dUrl: string;
+  asset3dSource: InventoryAssetSource;
+  projectImages: string;
+  generatedImages: string;
+  galleryImages: string;
+};
+
+function createInitialAddProductWizardState(): AddProductWizardState {
+  return {
+    name: '',
+    publicSku: '',
+    category: 'Cladding',
+    productType: inventoryProductTypeOptionsByCategory.Cladding[0],
+    finish: inventoryFinishOptions[0],
+    collection: '',
+    description: '',
+    supplierId: '',
+    unitCostZar: '',
+    sellPriceZar: '',
+    pricingUnit: pricingUnitOptions[0],
+    lengthMm: '',
+    widthMm: '',
+    heightMm: '',
+    weightKg: '',
+    coverageOrientation: coverageOrientationOptions[1],
+    primaryImageUrl: '',
+    galleryImageUrl: '',
+    faceImageUrl: '',
+    heroImageUrl: '',
+    asset25dUrl: '',
+    asset25dSource: 'Marketing Tool',
+    asset3dUrl: '',
+    asset3dSource: 'Marketing Tool',
+    projectImages: '',
+    generatedImages: '',
+    galleryImages: '',
+  };
+}
+
 const AddProductWizard = ({
   isOpen,
   onClose,
+  suppliers,
   onCreateProduct,
 }: {
   isOpen: boolean;
   onClose: () => void;
-  onCreateProduct: (input: {
+  suppliers: Array<{
+    id: string;
     name: string;
-    sku: string;
-    productType: string;
-    commercialCategory: string;
-    description: string;
-    sellPrice?: number;
-    unit?: string;
-    dimensions?: string;
-    weightKg?: number;
-    reorderPoint?: number;
-    initialStock?: number;
-  }) => Promise<void>;
+    status: 'Active' | 'Onboarding' | 'Delayed' | 'Restocking' | 'Inactive';
+    leadTime: string;
+  }>;
+  onCreateProduct: (input: CreateInventoryProductInput) => Promise<void>;
 }) => {
   const [step, setStep] = useState(1);
-  const [productData, setProductData] = useState({
-    name: '',
-    sku: '',
-    category: 'Brick',
-    description: '',
-    price: '',
-    unit: 'm2',
-    supplier: '',
-    dimensions: '',
-    weight: '',
-    stockLevel: 0,
-    minStock: 100,
-  });
+  const [productData, setProductData] = useState<AddProductWizardState>(createInitialAddProductWizardState);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const typeOptions = inventoryProductTypeOptionsByCategory[productData.category];
+  const finishEnabled = productData.category === 'Cladding' || productData.category === 'Bricks';
+
+  const coveragePreview = useMemo(() => {
+    const lengthMm = Number(productData.lengthMm);
+    const widthMm = Number(productData.widthMm);
+    const heightMm = Number(productData.heightMm);
+
+    if (!lengthMm || !widthMm || !heightMm) {
+      return null;
+    }
+
+    let faceAreaMm2 = lengthMm * widthMm;
+    if (productData.coverageOrientation === 'Length x Height') {
+      faceAreaMm2 = lengthMm * heightMm;
+    } else if (productData.coverageOrientation === 'Width x Height') {
+      faceAreaMm2 = widthMm * heightMm;
+    }
+
+    const faceAreaM2 = faceAreaMm2 / 1_000_000;
+    const unitsPerM2 = faceAreaM2 > 0 ? 1 / faceAreaM2 : 0;
+
+    return {
+      faceAreaM2,
+      unitsPerM2,
+    };
+  }, [productData.coverageOrientation, productData.heightMm, productData.lengthMm, productData.widthMm]);
+
+  const reviewBlockers = useMemo(() => {
+    const blockers: string[] = [];
+
+    if (!productData.name.trim()) blockers.push('Product name is required');
+    if (!productData.publicSku.trim()) blockers.push('Public SKU is required');
+    if (!productData.description.trim()) blockers.push('Description is required');
+    if (!productData.supplierId.trim()) blockers.push('Linked supplier is required');
+    if (!productData.unitCostZar.trim()) blockers.push('Unit cost in ZAR is required');
+    if (!productData.lengthMm.trim() || !productData.widthMm.trim() || !productData.heightMm.trim()) blockers.push('Dimensions are required');
+    if (!productData.weightKg.trim()) blockers.push('Weight is required');
+    if (!productData.primaryImageUrl.trim()) blockers.push('Primary image is required');
+    if (!productData.galleryImageUrl.trim()) blockers.push('Gallery image is required');
+    if (!productData.faceImageUrl.trim()) blockers.push('Face image is required');
+    if (!coveragePreview) blockers.push('Coverage preview is incomplete');
+
+    return blockers;
+  }, [coveragePreview, productData.description, productData.faceImageUrl, productData.galleryImageUrl, productData.heightMm, productData.lengthMm, productData.name, productData.primaryImageUrl, productData.publicSku, productData.supplierId, productData.unitCostZar, productData.weightKg, productData.widthMm]);
+
+  const parseAssetLines = useCallback((value: string, source: 'Asset Library' | 'Community Submission' | 'Studio Published') => {
+    return value
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((url) => ({ url, source }));
+  }, []);
+
+  const validateStep = useCallback(() => {
+    if (step === 1) {
+      if (!productData.name.trim() || !productData.publicSku.trim() || !productData.description.trim() || !productData.supplierId.trim()) {
+        setSubmitError('Complete the product identity, description, and supplier before continuing.');
+        return false;
+      }
+    }
+
+    if (step === 2) {
+      if (!productData.unitCostZar.trim() || !productData.lengthMm.trim() || !productData.widthMm.trim() || !productData.heightMm.trim() || !productData.weightKg.trim() || !coveragePreview) {
+        setSubmitError('Complete the commercial, dimension, and calculator fields before continuing.');
+        return false;
+      }
+    }
+
+    if (step === 3) {
+      if (!productData.primaryImageUrl.trim() || !productData.galleryImageUrl.trim() || !productData.faceImageUrl.trim()) {
+        setSubmitError('Primary, gallery, and face images are required before the product can be created.');
+        return false;
+      }
+    }
+
+    setSubmitError(null);
+    return true;
+  }, [coveragePreview, productData.description, productData.faceImageUrl, productData.galleryImageUrl, productData.heightMm, productData.lengthMm, productData.name, productData.primaryImageUrl, productData.publicSku, productData.supplierId, productData.unitCostZar, productData.weightKg, productData.widthMm, step]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -1850,19 +2042,7 @@ const AddProductWizard = ({
     setStep(1);
     setSubmitError(null);
     setIsSubmitting(false);
-    setProductData({
-      name: '',
-      sku: '',
-      category: 'Brick',
-      description: '',
-      price: '',
-      unit: 'm2',
-      supplier: '',
-      dimensions: '',
-      weight: '',
-      stockLevel: 0,
-      minStock: 100,
-    });
+    setProductData(createInitialAddProductWizardState());
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -1897,7 +2077,7 @@ const AddProductWizard = ({
 
           {/* Progress Bar */}
           <div className="flex h-1 bg-white/5">
-            {[1, 2, 3].map((s) => (
+            {[1, 2, 3, 4, 5].map((s) => (
               <div 
                 key={s} 
                 className={`flex-1 transition-all duration-500 ${s <= step ? 'bg-blue-400' : 'bg-transparent'}`} 
@@ -1906,7 +2086,7 @@ const AddProductWizard = ({
           </div>
 
           {/* Content */}
-          <div className="p-10 min-h-[400px]">
+          <div className="p-10 min-h-[520px]">
             {step === 1 && (
               <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
                 <div className="grid grid-cols-2 gap-6">
@@ -1921,28 +2101,91 @@ const AddProductWizard = ({
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">SKU / Reference</label>
+                    <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Public SKU</label>
                     <input 
                       type="text" 
-                      value={productData.sku}
-                      onChange={(e) => setProductData({ ...productData, sku: e.target.value })}
+                      value={productData.publicSku}
+                      onChange={(e) => setProductData({ ...productData, publicSku: e.target.value })}
                       className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-400/50 transition-colors"
-                      placeholder="BTS-BRK-001"
+                      placeholder="BTS-BRK-NFX-001"
                     />
                   </div>
                 </div>
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Category</label>
+                    <select 
+                      value={productData.category}
+                      onChange={(e) => {
+                        const nextCategory = e.target.value as (typeof inventoryCategoryOptions)[number];
+                        setProductData((current) => ({
+                          ...current,
+                          category: nextCategory,
+                          productType: inventoryProductTypeOptionsByCategory[nextCategory][0] as InventoryProductType,
+                          finish: nextCategory === 'Cladding' || nextCategory === 'Bricks' ? current.finish : '',
+                          coverageOrientation: (nextCategory === 'Paving' ? 'Length x Width' : 'Length x Height') as CoverageOrientation,
+                        }));
+                      }}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-400/50 transition-colors appearance-none"
+                    >
+                      {inventoryCategoryOptions.map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Type</label>
+                    <select
+                      value={productData.productType}
+                      onChange={(e) => setProductData({ ...productData, productType: e.target.value as InventoryProductType })}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-400/50 transition-colors appearance-none"
+                    >
+                      {typeOptions.map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Finish</label>
+                    <select
+                      value={productData.finish}
+                      onChange={(e) => setProductData({ ...productData, finish: e.target.value as InventoryFinish | '' })}
+                      disabled={!finishEnabled}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-400/50 transition-colors appearance-none disabled:opacity-40"
+                    >
+                      <option value="">Not applicable</option>
+                      {inventoryFinishOptions.map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Linked Supplier</label>
+                    <select
+                      value={productData.supplierId}
+                      onChange={(e) => setProductData({ ...productData, supplierId: e.target.value })}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-400/50 transition-colors appearance-none"
+                    >
+                      <option value="">Select supplier</option>
+                      {suppliers.map((supplier) => (
+                        <option key={supplier.id} value={supplier.id}>
+                          {supplier.name} · {supplier.status}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Category</label>
-                  <select 
-                    value={productData.category}
-                    onChange={(e) => setProductData({ ...productData, category: e.target.value })}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-400/50 transition-colors appearance-none"
-                  >
-                    <option value="Brick">Brick</option>
-                    <option value="Tile">Tile</option>
-                    <option value="Paver">Paver</option>
-                    <option value="Stone">Stone</option>
-                  </select>
+                  <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Collection / Range</label>
+                  <input
+                    type="text"
+                    value={productData.collection}
+                    onChange={(e) => setProductData({ ...productData, collection: e.target.value })}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-400/50 transition-colors"
+                    placeholder="Optional range or collection"
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Description</label>
@@ -1961,75 +2204,277 @@ const AddProductWizard = ({
               <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Base Price (£)</label>
+                    <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Unit Cost (ZAR)</label>
                     <input 
-                      type="text" 
-                      value={productData.price}
-                      onChange={(e) => setProductData({ ...productData, price: e.target.value })}
+                      type="number" 
+                      value={productData.unitCostZar}
+                      onChange={(e) => setProductData({ ...productData, unitCostZar: e.target.value })}
                       className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-400/50 transition-colors"
                       placeholder="0.00"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Unit</label>
-                    <select 
-                      value={productData.unit}
-                      onChange={(e) => setProductData({ ...productData, unit: e.target.value })}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-400/50 transition-colors appearance-none"
-                    >
-                      <option value="m2">Per m2</option>
-                      <option value="piece">Per Piece</option>
-                      <option value="pallet">Per Pallet</option>
-                    </select>
+                    <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Sell Price (ZAR)</label>
+                    <input
+                      type="number"
+                      value={productData.sellPriceZar}
+                      onChange={(e) => setProductData({ ...productData, sellPriceZar: e.target.value })}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-400/50 transition-colors"
+                      placeholder="Optional selling price"
+                    />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Dimensions</label>
+                    <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Pricing Unit</label>
+                    <select 
+                      value={productData.pricingUnit}
+                      onChange={(e) => setProductData({ ...productData, pricingUnit: e.target.value as InventoryPricingUnit })}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-400/50 transition-colors appearance-none"
+                    >
+                      {pricingUnitOptions.map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Coverage Face</label>
+                    <select
+                      value={productData.coverageOrientation}
+                      onChange={(e) => setProductData({ ...productData, coverageOrientation: e.target.value as CoverageOrientation })}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-400/50 transition-colors appearance-none"
+                    >
+                      {coverageOrientationOptions.map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Length (mm)</label>
                     <input 
-                      type="text" 
-                      value={productData.dimensions}
-                      onChange={(e) => setProductData({ ...productData, dimensions: e.target.value })}
+                      type="number" 
+                      value={productData.lengthMm}
+                      onChange={(e) => setProductData({ ...productData, lengthMm: e.target.value })}
                       className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-400/50 transition-colors"
-                      placeholder="e.g. 215 x 102.5 x 65mm"
+                      placeholder="215"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Width (mm)</label>
+                    <input
+                      type="number"
+                      value={productData.widthMm}
+                      onChange={(e) => setProductData({ ...productData, widthMm: e.target.value })}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-400/50 transition-colors"
+                      placeholder="102.5"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Height (mm)</label>
+                    <input
+                      type="number"
+                      value={productData.heightMm}
+                      onChange={(e) => setProductData({ ...productData, heightMm: e.target.value })}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-400/50 transition-colors"
+                      placeholder="65"
                     />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Weight (kg)</label>
                     <input 
-                      type="text" 
-                      value={productData.weight}
-                      onChange={(e) => setProductData({ ...productData, weight: e.target.value })}
+                      type="number" 
+                      value={productData.weightKg}
+                      onChange={(e) => setProductData({ ...productData, weightKg: e.target.value })}
                       className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-400/50 transition-colors"
                       placeholder="e.g. 2.4"
                     />
                   </div>
+                </div>
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-6 grid grid-cols-3 gap-4">
+                  <div>
+                    <div className="text-[9px] font-mono text-white/30 uppercase tracking-widest mb-2">Coverage Face</div>
+                    <div className="text-sm font-medium text-white">{productData.coverageOrientation}</div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] font-mono text-white/30 uppercase tracking-widest mb-2">Face Area</div>
+                    <div className="text-sm font-medium text-white">{coveragePreview ? `${coveragePreview.faceAreaM2.toFixed(4)} m²` : 'Pending'}</div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] font-mono text-white/30 uppercase tracking-widest mb-2">Units / m²</div>
+                    <div className="text-sm font-medium text-blue-400">{coveragePreview ? coveragePreview.unitsPerM2.toFixed(2) : 'Pending'}</div>
+                  </div>
+                </div>
+                <div className="p-4 bg-blue-400/5 border border-blue-400/10 rounded-2xl">
+                  <div className="text-[10px] font-mono text-blue-400 uppercase tracking-widest mb-1">Inventory Mode</div>
+                  <p className="text-sm text-white/60">This SKU is supplier-backed and procured when a quote is paid. Reorder point is fixed at zero for this workflow.</p>
                 </div>
               </motion.div>
             )}
 
             {step === 3 && (
               <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
-                <div className="bg-blue-400/5 border border-blue-400/10 rounded-2xl p-8 text-center">
-                  <div className="w-16 h-16 bg-blue-400/10 rounded-full flex items-center justify-center text-blue-400 mx-auto mb-4 border border-blue-400/20">
-                    <CheckCircle2 size={32} />
+                <div className="bg-blue-400/5 border border-blue-400/10 rounded-2xl p-6">
+                  <h3 className="text-lg font-medium text-white uppercase tracking-tight">Required Media Slots</h3>
+                  <p className="text-sm text-white/40 mt-2">These three images are the minimum required for storefront, catalog, and purchase-ready product coverage.</p>
+                </div>
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Primary Image URL</label>
+                    <input
+                      type="text"
+                      value={productData.primaryImageUrl}
+                      onChange={(e) => setProductData({ ...productData, primaryImageUrl: e.target.value })}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-400/50 transition-colors"
+                      placeholder="https://..."
+                    />
                   </div>
-                  <h3 className="text-xl font-medium text-white uppercase tracking-tight">Ready to Initialize</h3>
-                  <p className="text-sm text-white/40 mt-2">The product will be created with placeholder asset slots. You can upload media and 3D models in the next step.</p>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Gallery Image URL</label>
+                    <input
+                      type="text"
+                      value={productData.galleryImageUrl}
+                      onChange={(e) => setProductData({ ...productData, galleryImageUrl: e.target.value })}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-400/50 transition-colors"
+                      placeholder="https://..."
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Single Face Image URL</label>
+                    <input
+                      type="text"
+                      value={productData.faceImageUrl}
+                      onChange={(e) => setProductData({ ...productData, faceImageUrl: e.target.value })}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-400/50 transition-colors"
+                      placeholder="https://..."
+                    />
+                  </div>
+                </div>
+                {submitError && (
+                  <p className="text-xs text-red-400 text-center">{submitError}</p>
+                )}
+              </motion.div>
+            )}
+
+            {step === 4 && (
+              <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Hero Image URL</label>
+                    <input
+                      type="text"
+                      value={productData.heroImageUrl}
+                      onChange={(e) => setProductData({ ...productData, heroImageUrl: e.target.value })}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-400/50 transition-colors"
+                      placeholder="Optional storefront hero"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">2.5D Asset URL</label>
+                    <input
+                      type="text"
+                      value={productData.asset25dUrl}
+                      onChange={(e) => setProductData({ ...productData, asset25dUrl: e.target.value })}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-400/50 transition-colors"
+                      placeholder="Optional 2.5D asset"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">3D Asset URL</label>
+                    <input
+                      type="text"
+                      value={productData.asset3dUrl}
+                      onChange={(e) => setProductData({ ...productData, asset3dUrl: e.target.value })}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-400/50 transition-colors"
+                      placeholder="Optional 3D asset"
+                    />
+                  </div>
+                  <div className="p-5 bg-white/5 border border-white/10 rounded-2xl">
+                    <div className="text-[10px] font-mono text-white/30 uppercase tracking-widest mb-2">Asset Follow-on Workflow</div>
+                    <p className="text-sm text-white/60 leading-relaxed">
+                      If 2.5D or 3D is missing at create time, save the draft and continue in Asset Lab or the marketing tool to generate and attach the assets.
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2 col-span-1">
+                    <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Extra Gallery URLs</label>
+                    <textarea
+                      rows={5}
+                      value={productData.galleryImages}
+                      onChange={(e) => setProductData({ ...productData, galleryImages: e.target.value })}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-400/50 transition-colors resize-none"
+                      placeholder="One URL per line"
+                    />
+                  </div>
+                  <div className="space-y-2 col-span-1">
+                    <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Project Images</label>
+                    <textarea
+                      rows={5}
+                      value={productData.projectImages}
+                      onChange={(e) => setProductData({ ...productData, projectImages: e.target.value })}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-400/50 transition-colors resize-none"
+                      placeholder="Community-submitted URLs"
+                    />
+                  </div>
+                  <div className="space-y-2 col-span-1">
+                    <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Generated Images</label>
+                    <textarea
+                      rows={5}
+                      value={productData.generatedImages}
+                      onChange={(e) => setProductData({ ...productData, generatedImages: e.target.value })}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-400/50 transition-colors resize-none"
+                      placeholder="Studio-published URLs"
+                    />
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {step === 5 && (
+              <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
+                <div className="bg-blue-400/5 border border-blue-400/10 rounded-2xl p-8">
+                  <div className="flex items-center gap-3 mb-3">
+                    <CheckCircle2 size={18} className="text-blue-400" />
+                    <h3 className="text-xl font-medium text-white uppercase tracking-tight">Review Product Draft</h3>
+                  </div>
+                  <p className="text-sm text-white/40">This product will be created as a draft and remain supplier-backed with quote-paid procurement.</p>
                 </div>
 
                 <div className="grid grid-cols-3 gap-4">
                   <div className="p-4 bg-white/5 rounded-xl border border-white/5 text-center">
-                    <div className="text-[8px] font-mono text-white/40 uppercase tracking-widest mb-1">Stock</div>
-                    <div className="text-lg font-bold text-white">0</div>
+                    <div className="text-[8px] font-mono text-white/40 uppercase tracking-widest mb-1">Availability</div>
+                    <div className="text-lg font-bold text-white">Dropship</div>
                   </div>
                   <div className="p-4 bg-white/5 rounded-xl border border-white/5 text-center">
-                    <div className="text-[8px] font-mono text-white/40 uppercase tracking-widest mb-1">Status</div>
-                    <div className="text-lg font-bold text-blue-400">DRAFT</div>
+                    <div className="text-[8px] font-mono text-white/40 uppercase tracking-widest mb-1">Reorder Point</div>
+                    <div className="text-lg font-bold text-blue-400">0</div>
                   </div>
                   <div className="p-4 bg-white/5 rounded-xl border border-white/5 text-center">
-                    <div className="text-[8px] font-mono text-white/40 uppercase tracking-widest mb-1">Health</div>
-                    <div className="text-lg font-bold text-amber-400">0%</div>
+                    <div className="text-[8px] font-mono text-white/40 uppercase tracking-widest mb-1">Coverage</div>
+                    <div className="text-lg font-bold text-amber-400">{coveragePreview ? `${coveragePreview.unitsPerM2.toFixed(2)}/m²` : 'Pending'}</div>
+                  </div>
+                </div>
+
+                <div className="p-6 bg-white/5 border border-white/10 rounded-2xl space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Readiness blockers</span>
+                    <span className={`text-[10px] font-bold uppercase tracking-widest ${reviewBlockers.length === 0 ? 'text-blue-400' : 'text-amber-400'}`}>
+                      {reviewBlockers.length === 0 ? 'Ready to create' : `${reviewBlockers.length} remaining`}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {(reviewBlockers.length === 0 ? ['No blockers remaining'] : reviewBlockers).map((item) => (
+                      <div key={item} className="flex items-center gap-3">
+                        <div className={`w-5 h-5 rounded-full flex items-center justify-center ${reviewBlockers.length === 0 ? 'bg-blue-400/10 text-blue-400' : 'bg-amber-400/10 text-amber-400'}`}>
+                          <CheckCircle2 size={12} />
+                        </div>
+                        <span className="text-xs text-white/70">{item}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
                 {submitError && (
@@ -2059,8 +2504,16 @@ const AddProductWizard = ({
               </button>
               <button 
                 onClick={async () => {
-                  if (step < 3) {
+                  if (step < 5) {
+                    if (!validateStep()) {
+                      return;
+                    }
                     setStep(step + 1);
+                    return;
+                  }
+
+                  if (reviewBlockers.length > 0 || !coveragePreview) {
+                    setSubmitError('Resolve the remaining blockers before creating this product.');
                     return;
                   }
 
@@ -2069,17 +2522,33 @@ const AddProductWizard = ({
 
                   try {
                     await onCreateProduct({
-                      name: productData.name,
-                      sku: productData.sku,
-                      productType: productData.category,
-                      commercialCategory: productData.category === 'Stone' ? 'Luxury' : 'Premium',
-                      description: productData.description,
-                      sellPrice: productData.price ? Number(productData.price) : undefined,
-                      unit: productData.unit,
-                      dimensions: productData.dimensions || undefined,
-                      weightKg: productData.weight ? Number(productData.weight) : undefined,
-                      reorderPoint: productData.minStock,
-                      initialStock: productData.stockLevel,
+                      name: productData.name.trim(),
+                      publicSku: productData.publicSku.trim(),
+                      category: productData.category,
+                      productType: productData.productType,
+                      finish: finishEnabled && productData.finish ? productData.finish : null,
+                      collection: productData.collection.trim() || null,
+                      description: productData.description.trim(),
+                      linkedSupplierId: productData.supplierId,
+                      unitCostZar: Number(productData.unitCostZar),
+                      sellPriceZar: productData.sellPriceZar ? Number(productData.sellPriceZar) : undefined,
+                      pricingUnit: productData.pricingUnit,
+                      dimensions: {
+                        lengthMm: Number(productData.lengthMm),
+                        widthMm: Number(productData.widthMm),
+                        heightMm: Number(productData.heightMm),
+                        weightKg: Number(productData.weightKg),
+                        coverageOrientation: productData.coverageOrientation,
+                      },
+                      primaryImage: { url: productData.primaryImageUrl, source: 'Direct Upload' },
+                      galleryImage: { url: productData.galleryImageUrl, source: 'Direct Upload' },
+                      faceImage: { url: productData.faceImageUrl, source: 'Direct Upload' },
+                      heroImage: productData.heroImageUrl ? { url: productData.heroImageUrl, source: 'Asset Library' } : undefined,
+                      asset2_5d: productData.asset25dUrl ? { url: productData.asset25dUrl, source: productData.asset25dSource } : undefined,
+                      asset3d: productData.asset3dUrl ? { url: productData.asset3dUrl, source: productData.asset3dSource } : undefined,
+                      projectImages: parseAssetLines(productData.projectImages, 'Community Submission'),
+                      generatedImages: parseAssetLines(productData.generatedImages, 'Studio Published'),
+                      galleryImages: parseAssetLines(productData.galleryImages, 'Asset Library'),
                     });
                     onClose();
                   } catch (error) {
@@ -2091,7 +2560,7 @@ const AddProductWizard = ({
                 disabled={isSubmitting}
                 className="px-8 py-3 bg-blue-400 text-black text-[10px] font-bold uppercase tracking-widest rounded-xl hover:bg-blue-300 transition-all shadow-[0_0_20px_rgba(96,165,250,0.3)]"
               >
-                {isSubmitting ? 'Creating...' : step === 3 ? 'Create Product' : 'Next Step'}
+                {isSubmitting ? 'Creating...' : step === 5 ? 'Create Product' : 'Next Step'}
               </button>
             </div>
           </div>
@@ -2108,23 +2577,7 @@ const ImportPriceListWizard = ({
 }: {
   isOpen: boolean;
   onClose: () => void;
-  onImportPriceList: (input: {
-    fileName: string;
-    sourceType: 'csv' | 'xlsx' | 'json' | 'manual';
-    rows: {
-      sku: string;
-      name: string;
-      productType: string;
-      commercialCategory: string;
-      collection?: string;
-      description?: string;
-      sellPrice?: number;
-      unitCost?: number;
-      currency?: string;
-      unit?: string;
-      tags?: string[];
-    }[];
-  }) => Promise<unknown>;
+  onImportPriceList: (input: CreatePriceListImportInput) => Promise<unknown>;
 }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -2146,18 +2599,21 @@ const ImportPriceListWizard = ({
           Object.entries(row).map(([key, value]) => [key.trim().toLowerCase(), value]),
         );
 
+        const category = String(
+          normalized.category ??
+            normalized.productcategory ??
+            normalized.product_category ??
+            'Bricks',
+        ).trim() || 'Bricks';
+
         const productType = String(
           normalized.producttype ??
             normalized.product_type ??
-            normalized.category ??
-            'Brick',
-        ).trim() || 'Brick';
-
-        const commercialCategory = String(
-          normalized.commercialcategory ??
-            normalized.commercial_category ??
-            (productType === 'Stone' ? 'Luxury' : 'Premium'),
-        ).trim() || (productType === 'Stone' ? 'Luxury' : 'Premium');
+            normalized.type ??
+            'NFX',
+        )
+          .trim()
+          .replace(/interlocing/i, 'Interlocking') || 'NFX';
 
         const tagsValue = normalized.tags;
         const tags = Array.isArray(tagsValue)
@@ -2166,24 +2622,33 @@ const ImportPriceListWizard = ({
           ? tagsValue.split(',').map((value) => value.trim()).filter(Boolean)
           : undefined;
 
-        const sellPriceValue = normalized.sellprice ?? normalized.sell_price ?? normalized.price;
-        const unitCostValue = normalized.unitcost ?? normalized.unit_cost ?? normalized.cost;
+        const sellPriceValue = normalized.sellpricezar ?? normalized.sell_price_zar ?? normalized.sellprice ?? normalized.sell_price ?? normalized.price;
+        const unitCostValue = normalized.unitcostzar ?? normalized.unit_cost_zar ?? normalized.unitcost ?? normalized.unit_cost ?? normalized.cost;
 
         return {
-          sku: String(normalized.sku ?? '').trim(),
+          publicSku: String(normalized.publicsku ?? normalized.public_sku ?? normalized.sku ?? '').trim(),
           name: String(normalized.name ?? '').trim(),
+          category,
           productType,
-          commercialCategory,
+          finish: String(normalized.finish ?? '').trim() || undefined,
           collection: String(normalized.collection ?? normalized.range ?? '').trim() || undefined,
           description: String(normalized.description ?? '').trim() || undefined,
-          sellPrice: sellPriceValue !== undefined && sellPriceValue !== '' ? Number(sellPriceValue) : undefined,
-          unitCost: unitCostValue !== undefined && unitCostValue !== '' ? Number(unitCostValue) : undefined,
-          currency: String(normalized.currency ?? 'GBP').trim() || 'GBP',
-          unit: String(normalized.unit ?? 'm2').trim() || 'm2',
+          sellPriceZar: sellPriceValue !== undefined && sellPriceValue !== '' ? Number(sellPriceValue) : undefined,
+          unitCostZar: unitCostValue !== undefined && unitCostValue !== '' ? Number(unitCostValue) : undefined,
+          linkedSupplierId: String(normalized.linkedsupplierid ?? normalized.linked_supplier_id ?? normalized.supplierid ?? normalized.supplier ?? '').trim() || undefined,
+          pricingUnit: String(normalized.pricingunit ?? normalized.pricing_unit ?? normalized.unit ?? 'm2').trim() || 'm2',
+          lengthMm: normalized.lengthmm !== undefined && normalized.lengthmm !== '' ? Number(normalized.lengthmm) : undefined,
+          widthMm: normalized.widthmm !== undefined && normalized.widthmm !== '' ? Number(normalized.widthmm) : undefined,
+          heightMm: normalized.heightmm !== undefined && normalized.heightmm !== '' ? Number(normalized.heightmm) : undefined,
+          weightKg: normalized.weightkg !== undefined && normalized.weightkg !== '' ? Number(normalized.weightkg) : undefined,
+          primaryImageUrl: String(normalized.primaryimageurl ?? normalized.primary_image_url ?? '').trim() || undefined,
+          galleryImageUrl: String(normalized.galleryimageurl ?? normalized.gallery_image_url ?? '').trim() || undefined,
+          faceImageUrl: String(normalized.faceimageurl ?? normalized.face_image_url ?? '').trim() || undefined,
+          heroImageUrl: String(normalized.heroimageurl ?? normalized.hero_image_url ?? '').trim() || undefined,
           tags,
         };
       })
-      .filter((row) => row.sku && row.name);
+      .filter((row) => row.publicSku && row.name);
   }, []);
 
   const handleFileSelected = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -2198,19 +2663,7 @@ const ImportPriceListWizard = ({
 
     try {
       const extension = file.name.split('.').pop()?.toLowerCase();
-      let rows: {
-        sku: string;
-        name: string;
-        productType: string;
-        commercialCategory: string;
-        collection?: string;
-        description?: string;
-        sellPrice?: number;
-        unitCost?: number;
-        currency?: string;
-        unit?: string;
-        tags?: string[];
-      }[] = [];
+      let rows: CreatePriceListImportInput['rows'] = [];
 
       if (extension === 'json') {
         const text = await file.text();
@@ -2287,7 +2740,7 @@ const ImportPriceListWizard = ({
                 </div>
                 <div>
                   <h3 className="text-lg font-medium text-white uppercase tracking-tight">Drop Price List Here</h3>
-                  <p className="text-sm text-white/40 mt-2">Support for .csv, .xlsx, and .json formats.</p>
+                  <p className="text-sm text-white/40 mt-2">Support for .csv, .xlsx, and .json with category, type, dimensions, supplier, and optional media columns.</p>
                   {uploadError && <p className="text-xs text-red-400 mt-3">{uploadError}</p>}
                 </div>
                 <div className="flex items-center justify-center gap-4 pt-4">
@@ -2554,7 +3007,7 @@ const InventoryInsights = ({
   dashboard: InventoryDashboardSnapshot | null;
   products: Product[];
 }) => {
-  const velocitySeries = dashboard?.velocitySeries ?? [];
+  const procurementSeries = dashboard?.procurementSeries ?? [];
   const categoryDistribution = dashboard?.categoryDistribution ?? [];
   const assetRoi = dashboard?.assetRoi;
   const topPerformers = dashboard?.topPerformers ?? [];
@@ -2563,14 +3016,14 @@ const InventoryInsights = ({
     <div className="space-y-10">
       <header>
         <h2 className="text-2xl font-medium text-white tracking-tight uppercase">Inventory Insights</h2>
-        <p className="text-sm text-white/40 mt-1">Predictive stock analytics and asset performance metrics.</p>
+        <p className="text-sm text-white/40 mt-1">Predictive procurement analytics and asset performance metrics.</p>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           <div className="bg-[#0a0a0a] border border-white/5 rounded-2xl p-8">
             <div className="flex justify-between items-center mb-8">
-              <h3 className="text-xs font-bold uppercase tracking-widest">Stock Velocity vs Demand</h3>
+              <h3 className="text-xs font-bold uppercase tracking-widest">Procurement Velocity vs Demand</h3>
               <div className="flex gap-4">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-blue-400" />
@@ -2583,7 +3036,7 @@ const InventoryInsights = ({
               </div>
             </div>
             <div className="h-64 flex items-end gap-2">
-              {velocitySeries.map((series, i) => (
+              {procurementSeries.map((series, i) => (
                 <div key={`velocity-bar-${i}`} className="flex-1 flex flex-col items-center gap-2 group">
                   <div className="w-full relative">
                     <div 
@@ -2640,11 +3093,11 @@ const InventoryInsights = ({
               <div className="p-2 bg-blue-400/20 rounded-lg text-blue-400">
                 <Zap size={16} />
               </div>
-              <h3 className="text-xs font-bold uppercase tracking-widest">AI Stock Predictor</h3>
+              <h3 className="text-xs font-bold uppercase tracking-widest">AI Procurement Predictor</h3>
             </div>
-            <p className="text-xs text-white/60 leading-relaxed mb-6">Based on the live stock ledger and supplier lead times, we predict a stock-out risk for <span className="text-white font-bold">{dashboard?.lowStockAlerts[0]?.id ?? products[0]?.id ?? 'N/A'}</span> in the next replenishment cycle.</p>
+            <p className="text-xs text-white/60 leading-relaxed mb-6">Based on supplier availability and lead-time drift, we predict the next procurement pressure on <span className="text-white font-bold">{dashboard?.availabilityAlerts[0]?.id ?? products[0]?.id ?? 'N/A'}</span> if demand holds.</p>
             <button className="w-full py-3 bg-blue-400 text-black text-[10px] font-bold uppercase tracking-widest rounded-xl hover:bg-blue-300 transition-all">
-              Auto-Replenish
+              Open Procurement Queue
             </button>
           </div>
 
@@ -7512,32 +7965,29 @@ function EmployeePortalContent() {
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-10">
               <header>
                 <h1 className="text-4xl font-serif font-bold tracking-tighter text-white uppercase mb-2">Inventory Overview</h1>
-                <p className="text-[10px] font-mono text-white/40 uppercase tracking-[0.3em]">Stock Control & Asset Health Monitoring</p>
+                <p className="text-[10px] font-mono text-white/40 uppercase tracking-[0.3em]">Supplier Availability & Asset Health Monitoring</p>
               </header>
 
 	              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
 	                <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-8">
 	                  <div className="flex items-center justify-between mb-8">
-	                    <h3 className="text-xs font-bold uppercase tracking-widest">Low Stock Alerts</h3>
+	                    <h3 className="text-xs font-bold uppercase tracking-widest">Supplier Availability Alerts</h3>
 	                    <div className="flex items-center gap-2 text-red-400 text-[10px] uppercase tracking-widest font-bold">
-	                      <AlertCircle size={14} /> {inventoryPortal.dashboard?.summary.lowStockCount ?? 0} Items Critical
+	                      <AlertCircle size={14} /> {inventoryPortal.dashboard?.summary.supplierAlertCount ?? 0} Items Need Attention
 	                    </div>
 	                  </div>
 	                  <div className="space-y-4">
-	                    {(inventoryPortal.dashboard?.lowStockAlerts ?? []).map((item) => (
+	                    {(inventoryPortal.dashboard?.availabilityAlerts ?? []).map((item) => (
 	                      <div key={item.name} className="flex items-center gap-6 p-4 bg-white/5 rounded-xl border border-white/5">
 	                        <div className="flex-1">
 	                          <div className="text-sm font-bold mb-1">{item.name}</div>
-	                          <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
-	                            <div 
-                              className={`h-full ${item.status === 'Critical' ? 'bg-red-500' : 'bg-amber-500'}`} 
-                              style={{ width: `${(item.stock / item.min) * 100}%` }}
-                            ></div>
-                          </div>
+                            <div className="text-[10px] font-mono text-white/30 uppercase tracking-widest mt-2">
+                              {item.supplierName ?? 'No supplier'} · {item.leadTime ?? 'Lead time pending'}
+                            </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-xs font-mono font-bold">{item.stock} / {item.min}</div>
-                          <div className={`text-[8px] uppercase tracking-widest font-bold ${item.status === 'Critical' ? 'text-red-400' : 'text-amber-400'}`}>{item.status}</div>
+                          <div className="text-xs font-mono font-bold">{item.status}</div>
+                          <div className={`text-[8px] uppercase tracking-widest font-bold ${item.severity === 'Critical' ? 'text-red-400' : 'text-amber-400'}`}>{item.severity}</div>
                         </div>
                       </div>
                     ))}
@@ -10087,6 +10537,12 @@ function EmployeePortalContent() {
  <AddProductWizard 
    isOpen={isAddProductWizardOpen} 
    onClose={() => setIsAddProductWizardOpen(false)} 
+   suppliers={inventoryPortal.suppliers.map((supplier) => ({
+     id: supplier.id,
+     name: supplier.name,
+     status: supplier.status,
+     leadTime: supplier.leadTime,
+   }))}
    onCreateProduct={inventoryPortal.createProduct}
  />
  <ImportPriceListWizard 
