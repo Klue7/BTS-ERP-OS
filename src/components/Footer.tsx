@@ -2,11 +2,11 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Instagram, Twitter, Youtube, ArrowRight } from 'lucide-react';
 import { useVisualLab, useTheme } from './VisualLabContext';
-import { productData } from '../catalog/productData';
+import { useStorefrontCategoryData } from '../catalog/storefrontData';
 
 export function Footer() {
   const { activeCategory } = useVisualLab();
-  const categoryData = productData[activeCategory];
+  const { categoryData } = useStorefrontCategoryData(activeCategory);
   const { 
     primaryColor: activeColor, 
     textClass: activeColorClass, 

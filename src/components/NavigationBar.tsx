@@ -3,9 +3,20 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Search, ShoppingCart, User, LogOut, LayoutDashboard, ChevronDown, Sparkles, Menu, X } from 'lucide-react';
 import { useVisualLab } from './VisualLabContext';
 import { motion, AnimatePresence } from 'motion/react';
+import { getCustomerAccountCategoryShortLabel } from '../customers/accountCategories';
 
 export function NavigationBar() {
-  const { setIsLoginPageOpen, isLoggedIn, userRole, setIsLoggedIn, setUserRole, cart, setIsCartWizardOpen } = useVisualLab();
+  const {
+    setIsLoginPageOpen,
+    isLoggedIn,
+    userRole,
+    setIsLoggedIn,
+    setUserRole,
+    customerAccountCategory,
+    setCustomerAccountCategory,
+    cart,
+    setIsCartWizardOpen,
+  } = useVisualLab();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
@@ -22,6 +33,7 @@ export function NavigationBar() {
   const handleLogout = () => {
     setIsLoggedIn(false);
     setUserRole(null);
+    setCustomerAccountCategory(null);
     setIsDropdownOpen(false);
     setIsMobileMenuOpen(false);
     navigate('/');
@@ -38,6 +50,18 @@ export function NavigationBar() {
   const activeColorClass = 'text-[#22c55e]';
   const hoverColorClass = 'hover:text-[#22c55e]';
   const bgClass = 'bg-[#22c55e]';
+  const userAccentClass = !isLoggedIn
+    ? ''
+    : userRole === 'employee'
+      ? 'text-blue-400'
+      : userRole === 'supplier'
+        ? 'text-amber-400'
+        : 'text-green-400';
+  const userRoleLabel = userRole === 'employee'
+    ? 'Employee'
+    : userRole === 'supplier'
+      ? 'Supplier'
+      : getCustomerAccountCategoryShortLabel(customerAccountCategory);
 
   return (
     <>
@@ -100,11 +124,11 @@ export function NavigationBar() {
               onClick={handleUserClick}
               className={`text-white transition-colors flex items-center gap-2 ${hoverColorClass}`}
             >
-              <User size={20} className={isLoggedIn ? (userRole === 'employee' ? "text-blue-400" : "text-green-400") : ""} />
+              <User size={20} className={userAccentClass} />
               {isLoggedIn && (
                 <>
                   <span className="text-[10px] uppercase tracking-widest hidden sm:inline">
-                    {userRole === 'employee' ? 'Employee' : 'Customer'}
+                    {userRoleLabel}
                   </span>
                   <ChevronDown size={12} className={`transition-transform duration-300 ${isDropdownOpen ? 'rotate-180' : ''}`} />
                 </>
@@ -173,8 +197,8 @@ export function NavigationBar() {
               {isLoggedIn ? (
                 <>
                   <div className="flex items-center gap-3 text-white/60 text-sm uppercase tracking-widest mb-2">
-                    <User size={16} className={userRole === 'employee' ? "text-blue-400" : "text-green-400"} />
-                    Logged in as {userRole}
+                    <User size={16} className={userAccentClass} />
+                    Logged in as {userRoleLabel}
                   </div>
                   <button 
                     onClick={handleViewPortal}

@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapPin } from 'lucide-react';
 import { useVisualLab, useTheme } from './VisualLabContext';
-import { productData } from '../catalog/productData';
+import { useStorefrontCategoryData } from '../catalog/storefrontData';
 
 export const SOUTH_AFRICAN_PROVINCES = [
   'Eastern Cape',
@@ -25,6 +25,7 @@ interface RegionSelectorProps {
 export function RegionSelector({ selectedRegion, setSelectedRegion, fulfillment }: RegionSelectorProps) {
   const { activeCategory, selectedCatalogItem, setSelectedCatalogItem } = useVisualLab();
   const { primaryColor, textClass } = useTheme();
+  const { categoryData } = useStorefrontCategoryData(activeCategory);
   
   // Staggered animation variants
   const containerVariants = {
@@ -45,7 +46,7 @@ export function RegionSelector({ selectedRegion, setSelectedRegion, fulfillment 
                            selectedCatalogItem?.region && 
                            selectedCatalogItem.region !== selectedRegion;
                            
-  const alternatives = ((productData as any)[activeCategory]?.catalog || [])
+  const alternatives = (categoryData?.catalog || [])
     .filter((c: any) => c.region === selectedRegion)
     .slice(0, 2);
 

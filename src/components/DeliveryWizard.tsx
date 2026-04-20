@@ -8,24 +8,12 @@ import { useVisualLab, useTheme } from './VisualLabContext';
 import { VolumeEconomicsSlider } from './VolumeEconomicsSlider';
 import { QuoteDocument } from './QuoteDocument';
 import { RegionSelector } from './RegionSelector';
+import { getRecommendedQuoteUnit, resolveTransportDistance, type ProductQuoteModel } from '../pricing/quoteEngine';
 
 const FACTORY_LOCATIONS: Record<string, string> = {
   'cladding-tiles': 'Pretoria East Factory',
   'bricks':         'Midrand Mega-Plant',
   'paving':         'Krugersdorp Depot'
-};
-
-const PROVINCE_DISTANCES: Record<string, number> = {
-  'gauteng':        45,
-  'north west':    120,
-  'limpopo':       280,
-  'mpumalanga':    210,
-  'free state':    400,
-  'kzn':           600,
-  'kwazulu-natal': 600,
-  'northern cape': 800,
-  'eastern cape':  950,
-  'western cape': 1400,
 };
 
 // ── Slide transition helpers ─────────────────────────────────────────────────
@@ -58,8 +46,8 @@ export function DeliveryWizard() {
 
   const factory   = FACTORY_LOCATIONS[activeCategory] ?? 'Main Depot';
   const itemLabel = selectedCatalogItem?.name ?? 'materials';
-  const isBrick = activeCategory === 'bricks';
-  const pricePerUnit = parseFloat((selectedCatalogItem?.price || '0').replace(/[^0-9.]/g, '')) / (isBrick ? 500 : 52) || 0;
+  const quoteModel: ProductQuoteModel | null = selectedCatalogItem?.quoteModel ?? null;
+  const quoteUnit = quoteModel ? getRecommendedQuoteUnit(quoteModel) : 'piece';
 
   const go = (target: number) => {
     setDir(target > step ? 1 : -1);
@@ -67,12 +55,10 @@ export function DeliveryWizard() {
   };
 
   const handleAddress = () => {
-    let d = 50;
-    const p = address.province.toLowerCase();
-    for (const [k, v] of Object.entries(PROVINCE_DISTANCES)) {
-      if (p.includes(k)) { d = v; break; }
-    }
-    setDistance(d);
+    const resolvedDistance = quoteModel
+      ? resolveTransportDistance({ product: quoteModel, province: address.province }).distanceKm
+      : 50;
+    setDistance(resolvedDistance);
     go(2);
   };
 
@@ -107,9 +93,9 @@ export function DeliveryWizard() {
               address={address}
               fulfillment="delivery"
               uomQty={uomQty}
+              quantityUnit={quoteUnit}
               itemName={itemLabel}
-              pricePerUnit={pricePerUnit}
-              isBrick={isBrick}
+              product={quoteModel}
               activeColor={primaryColor}
               onClose={handleClose}
             />
@@ -195,7 +181,30 @@ export function DeliveryWizard() {
                           <p className="text-[10px] uppercase tracking-[0.25em] text-white/30 mb-1">Step 02 / Volume</p>
                           <h3 className="text-2xl font-light text-white">Volume Economics Simulator</h3>
                         </div>
-                        <VolumeEconomicsSlider uomQty={uomQty} setUomQty={setUomQty} minUomQty={1} pricePerUnit={pricePerUnit} province={address.province} isDelivery={true} accentColor={primaryColor} textClass={textClass} bgClass={bgClass} borderClass={borderClass} />
+                        <VolumeEconomicsSlider
+                          product={quoteModel ?? {
+                            name: itemLabel,
+                            categoryKey: activeCategory,
+                            pricingUnit: activeCategory === 'bricks' ? 'piece' : activeCategory === 'cladding-tiles' ? 'm2' : 'piece',
+                            sellPriceZar: 0,
+                            unitsPerM2: activeCategory === 'bricks' ? 55 : activeCategory === 'cladding-tiles' ? 50 : 1,
+                            weightPerPieceKg: 0,
+                            piecesPerPallet: activeCategory === 'bricks' ? 500 : activeCategory === 'cladding-tiles' ? 2000 : 1,
+                            boxesPerPallet: activeCategory === 'cladding-tiles' ? 40 : 0,
+                            palletsPerTruck: 24,
+                            logistics: { costPricePerKm: 25, sellPricePerKm: 35, fixedFee: 0, minimumCharge: 0 },
+                          }}
+                          uomQty={uomQty}
+                          setUomQty={setUomQty}
+                          minUomQty={1}
+                          quantityUnit={quoteUnit}
+                          province={address.province}
+                          isDelivery={true}
+                          accentColor={primaryColor}
+                          textClass={textClass}
+                          bgClass={bgClass}
+                          borderClass={borderClass}
+                        />
                       </motion.div>
                     )}
                     {step === 3 && (

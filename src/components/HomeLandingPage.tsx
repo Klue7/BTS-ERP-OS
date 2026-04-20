@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { lazy, Suspense, useEffect, useRef } from 'react';
 import { NavigationBar } from './NavigationBar';
 import { HomeHeroSection } from './HomeHeroSection';
 import { CatalogSection } from './CatalogSection';
@@ -11,9 +11,16 @@ import { DeliveryWizard } from './DeliveryWizard';
 import { CartCheckoutWizard } from './CartCheckoutWizard';
 import { ProductDetailsWizard } from './ProductDetailsWizard';
 
+const PremiumShowcaseSection = lazy(() =>
+  import('./PremiumShowcaseSection').then((module) => ({
+    default: module.PremiumShowcaseSection,
+  })),
+);
+
 const SNAP_IDS = [
   'hero',
   'catalog',
+  'premium-showcase',
   'footer'
 ];
 
@@ -146,6 +153,23 @@ export function HomeLandingPage() {
         </div>
 
         <CatalogSection />
+
+        <Suspense
+          fallback={
+            <section
+              id="premium-showcase"
+              className="relative flex min-h-[100svh] items-center justify-center overflow-hidden bg-[#050505] px-6 text-white"
+            >
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,197,94,0.12),transparent_42%)]" />
+              <div className="relative rounded-[2rem] border border-white/10 bg-black/50 px-8 py-6 text-center shadow-[0_30px_100px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+                <p className="text-[10px] font-black uppercase tracking-[0.36em] text-[#22c55e]">Tile Sweeper</p>
+                <p className="mt-2 text-xs uppercase tracking-[0.24em] text-white/35">Loading daily game grid</p>
+              </div>
+            </section>
+          }
+        >
+          <PremiumShowcaseSection />
+        </Suspense>
       </main>
       
       <div id="footer">

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, lazy, Suspense } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { NavigationBar } from './NavigationBar';
 import { HeroSection } from './HeroSection';
 import { MaterialStorySection } from './MaterialStorySection';
@@ -7,12 +7,11 @@ import { ProductJourneySection } from './ProductJourneySection';
 
 import { TechnicalSection } from './TechnicalSection';
 import { ShowcaseSection } from './ShowcaseSection';
-import { PremiumShowcaseSection } from './PremiumShowcaseSection';
 import { TopSellersSection } from './TopSellersSection';
+import { ProductKnowledgeSection } from './ProductKnowledgeSection';
 import { CatalogSection } from './CatalogSection';
 import { Footer } from './Footer';
 
-import { ProductScene } from './ProductScene';
 import Lenis from '@studio-freight/lenis';
 import { useVisualLab } from './VisualLabContext';
 import { QuoteWizard } from './QuoteWizard';
@@ -31,7 +30,7 @@ const SNAP_IDS = [
   'technical-spotlight',
   'showcase',
   'transform',
-  'premium-showcase',
+  'product-guides',
   'footer',
 ];
 
@@ -195,7 +194,7 @@ export function ProductsPage() {
         <TechnicalSection />
         <ShowcaseSection />
         <TopSellersSection />
-        <PremiumShowcaseSection />
+        <ProductKnowledgeSection />
         
         {/* Footer */}
         <Footer />

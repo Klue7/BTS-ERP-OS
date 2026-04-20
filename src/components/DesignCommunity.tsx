@@ -7,82 +7,19 @@ import {
   Layers, Share2, MessageCircle, ExternalLink
 } from 'lucide-react';
 import { NavigationBar } from './NavigationBar';
+import { useNavigate, useParams } from 'react-router-dom';
+import {
+  COMMUNITY_CONTRACTORS as CONTRACTORS,
+  COMMUNITY_POSTS as POSTS,
+  KNOWLEDGE_ARTICLES as ARTICLES,
+  type CommunityPost,
+  type Contractor,
+  type KnowledgeArticle,
+} from '../community/publicCommunityContent';
+import { usePublishedMarketingContent } from '../community/usePublishedMarketingContent';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type SectionId = 0 | 1 | 2;
-
-interface CommunityPost {
-  id: string;
-  type: 'editorial' | 'concept' | 'built';
-  title: string;
-  description: string;
-  mediaUrl: string;
-  author: { name: string; role: string };
-  category: string;
-  location?: string;
-  tags: string[];
-  date: string;
-  stats: { likes: number; saves: number; comments: number };
-}
-
-interface KnowledgeArticle {
-  id: string;
-  type: 'guide' | 'trend' | 'news' | 'tips' | 'blog';
-  title: string;
-  excerpt: string;
-  coverImage: string;
-  readTime: string;
-  category: string;
-  author: string;
-  featured: boolean;
-  date: string;
-}
-
-interface Contractor {
-  id: string;
-  name: string;
-  type: 'builder' | 'architect' | 'interior_designer' | 'landscape';
-  region: string;
-  city: string;
-  specialties: string[];
-  rating: number;
-  projectCount: number;
-  description: string;
-  phone?: string;
-  email?: string;
-  website?: string;
-  verified: boolean;
-}
-
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-const POSTS: CommunityPost[] = [
-  { id: 'p1', type: 'editorial', title: 'Minimalist Industrial Loft', description: 'Raw beauty of exposed brick and polished concrete in a modern urban setting. Curated by the BTS Editorial team for maximum atmospheric impact.', mediaUrl: 'https://images.unsplash.com/photo-1536376074432-bf1217709993?w=1200&q=80', author: { name: 'BTS Editorial', role: 'Curator' }, category: 'Residential', tags: ['Industrial', 'Minimalist'], date: '2024-03-20', stats: { likes: 3200, saves: 1240, comments: 45 } },
-  { id: 'p2', type: 'concept', title: 'Coastal Retreat Concept', description: 'Customer-generated in the BTS Studio. Light-toned bricks and airy textures for a beachside feel. Designed for a private client in Hermanus.', mediaUrl: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=1200&q=80', author: { name: 'Sarah Jenkins', role: 'Interior Designer' }, category: 'Residential', tags: ['Coastal', 'Light'], date: '2024-03-22', stats: { likes: 1500, saves: 850, comments: 28 } },
-  { id: 'p3', type: 'built', title: 'The Urban Office HQ', description: 'Large-scale commercial façade featuring custom architectural bricks. A collaboration with Studio X resulting in this award-nominated structure.', mediaUrl: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1200&q=80', author: { name: 'Studio X Architects', role: 'Architectural Partner' }, location: 'Cape Town, SA', category: 'Commercial', tags: ['Commercial', 'Office'], date: '2024-03-15', stats: { likes: 5600, saves: 2100, comments: 112 } },
-  { id: 'p4', type: 'editorial', title: 'Terracotta Textures', description: 'The warmth of traditional terracotta meets contemporary design. A curated look into our Autumn collection by the BTS editorial team.', mediaUrl: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=1200&q=80', author: { name: 'BTS Editorial', role: 'Curator' }, category: 'Retail', tags: ['Terracotta', 'Warm'], date: '2024-03-25', stats: { likes: 980, saves: 560, comments: 12 } },
-  { id: 'p5', type: 'concept', title: 'Modern Farmhouse Kitchen', description: 'Rustic charm with sleek modern finishes. Designed in BTS Studio for a private residence — Antique White Brick as the hero material.', mediaUrl: 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=1200&q=80', author: { name: 'Michael Chen', role: 'Customer' }, category: 'Residential', tags: ['Farmhouse', 'Kitchen'], date: '2024-03-26', stats: { likes: 2100, saves: 1100, comments: 34 } },
-  { id: 'p6', type: 'built', title: 'Heritage Home Restoration', description: "Preserving history with authentic heritage bricks. A meticulous restoration of a 1920s Victorian home in Johannesburg's heritage district.", mediaUrl: 'https://images.unsplash.com/photo-1518780664697-55e3ad937233?w=1200&q=80', author: { name: 'Heritage Builders', role: 'Restoration Specialist' }, location: 'Johannesburg, SA', category: 'Hospitality', tags: ['Heritage', 'Restoration'], date: '2024-03-10', stats: { likes: 8900, saves: 3400, comments: 245 } },
-];
-
-const ARTICLES: KnowledgeArticle[] = [
-  { id: 'a1', type: 'trend', title: 'The Resurgence of Terracotta in Modern Commercial Spaces', excerpt: 'How leading architects are utilizing warm, earthy tones to offset cold urban environments and create inviting public spaces.', coverImage: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&q=80', readTime: '5 min', category: 'Architecture', author: 'BTS Editorial', featured: true, date: '2024-03-26' },
-  { id: 'a2', type: 'guide', title: 'Understanding Mortar Joints: A Technical Guide', excerpt: 'From flush to recessed — how different mortar joint profiles completely change the shadow play and aesthetic of your brickwork.', coverImage: 'https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=800&q=80', readTime: '8 min', category: 'Technical', author: 'Technical Team', featured: false, date: '2024-03-22' },
-  { id: 'a3', type: 'news', title: 'Sustainable Firing Practices in 2024', excerpt: 'Brick Tile Shop announces carbon-offset initiatives and lower-emission kiln technologies across our core ranges.', coverImage: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800&q=80', readTime: '3 min', category: 'Sustainability', author: 'BTS Corporate', featured: false, date: '2024-03-18' },
-  { id: 'a4', type: 'tips', title: 'Sealing Exterior Cladding: Best Practices', excerpt: 'Protect your investment. Optimal sealing schedules and product recommendations for coastal vs. inland projects.', coverImage: 'https://images.unsplash.com/photo-1518780664697-55e3ad937233?w=800&q=80', readTime: '6 min', category: 'Maintenance', author: 'Support Team', featured: false, date: '2024-03-15' },
-  { id: 'a5', type: 'blog', title: 'The Future of Brick: Digital Craftsmanship', excerpt: 'Exploring the intersection of robotic masonry and traditional bricklaying in next-generation architectural façades.', coverImage: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=800&q=80', readTime: '7 min', category: 'Innovation', author: 'BTS Studio', featured: false, date: '2024-03-10' },
-  { id: 'a6', type: 'guide', title: 'Choosing the Right Bond Pattern', excerpt: 'Stretcher, Flemish, English — a visual guide to selecting the bond pattern that tells the right story for your project.', coverImage: 'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?w=800&q=80', readTime: '5 min', category: 'Design', author: 'BTS Studio', featured: false, date: '2024-03-05' },
-];
-
-const CONTRACTORS: Contractor[] = [
-  { id: 'c1', name: 'Cape Construct Co.', type: 'builder', region: 'Western Cape', city: 'Cape Town', specialties: ['Residential', 'Cladding', 'Renovations'], rating: 4.9, projectCount: 124, description: 'Premium residential and commercial building specialists with 15+ years of cladding expertise along the Western Cape coastline.', phone: '+27 21 123 4567', email: 'info@capeconstruct.co.za', website: 'capeconstruct.co.za', verified: true },
-  { id: 'c2', name: 'Studio X Architects', type: 'architect', region: 'Western Cape', city: 'Cape Town', specialties: ['Commercial', 'Modernist', 'Adaptive Reuse'], rating: 5.0, projectCount: 67, description: 'Award-winning architecture practice focused on contemporary material expression and spatial innovation. Partners with BTS on high-end façade projects.', phone: '+27 21 987 6543', email: 'projects@studiox.co.za', website: 'studiox.co.za', verified: true },
-  { id: 'c3', name: 'Joburg Interiors', type: 'interior_designer', region: 'Gauteng', city: 'Johannesburg', specialties: ['Hospitality', 'Residential', 'Feature Walls'], rating: 4.8, projectCount: 89, description: 'Transforming spaces through material excellence. We work closely with BTS products on every residential and hospitality project.', email: 'hello@joburginteriors.co.za', verified: true },
-  { id: 'c4', name: 'Durban Build Masters', type: 'builder', region: 'KwaZulu-Natal', city: 'Durban', specialties: ['Coastal', 'Commercial', 'Large Scale'], rating: 4.7, projectCount: 201, description: 'Leading building contractor for the KZN coastal region. Specialised in salt-resistant cladding systems and large-scale commercial construction.', phone: '+27 31 456 7890', email: 'build@durbanmasters.co.za', verified: true },
-  { id: 'c5', name: 'Verdant Landscape Design', type: 'landscape', region: 'Gauteng', city: 'Pretoria', specialties: ['Landscape', 'Paving', 'Garden Paths'], rating: 4.6, projectCount: 55, description: 'Creating outdoor spaces that flow seamlessly with architectural language using BTS paving and brick ranges.', phone: '+27 12 345 6789', email: 'design@verdant.co.za', website: 'verdantdesign.co.za', verified: false },
-  { id: 'c6', name: 'Ndlovu Architecture', type: 'architect', region: 'KwaZulu-Natal', city: 'Pietermaritzburg', specialties: ['Heritage', 'Residential', 'Community'], rating: 4.9, projectCount: 43, description: 'Celebrating African architectural heritage through contemporary material storytelling and sensitive site response.', email: 'info@ndlovuarch.co.za', verified: true },
-  { id: 'c7', name: 'The Design Bureau', type: 'interior_designer', region: 'Western Cape', city: 'Stellenbosch', specialties: ['Boutique', 'Wine Estates', 'Feature Walls'], rating: 4.8, projectCount: 38, description: 'Boutique interior practice creating spaces where materiality meets narrative. Known for signature brick feature walls.', website: 'designbureau.co.za', email: 'studio@designbureau.co.za', verified: true },
-  { id: 'c8', name: 'EcoStone Builders', type: 'builder', region: 'Eastern Cape', city: 'Gqeberha', specialties: ['Sustainable', 'Residential', 'Green Build'], rating: 4.5, projectCount: 77, description: 'Sustainable building specialists committed to eco-conscious material selection and low-waste construction practices.', phone: '+27 41 234 5678', verified: false },
-];
 
 // ─── Hero volume data ─────────────────────────────────────────────────────────
 const VOLUMES = [
@@ -136,6 +73,52 @@ const CTYPE_CFG: Record<Contractor['type'], { label: string; Icon: any }> = {
   landscape: { label: 'Landscape', Icon: Layout },
 };
 
+const COMMUNITY_LIKES_STORAGE_KEY = 'bts-community-liked-posts';
+
+function readLikedCommunityPosts() {
+  if (typeof window === 'undefined') return new Set<string>();
+
+  try {
+    const raw = window.localStorage.getItem(COMMUNITY_LIKES_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : []);
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function formatEngagementCount(value: number) {
+  return new Intl.NumberFormat('en-ZA', { maximumFractionDigits: 0 }).format(value);
+}
+
+function getWhatsAppHref(contractor: Contractor) {
+  const phoneDigits = contractor.phone?.replace(/[^\d]/g, '');
+  if (!phoneDigits) return null;
+
+  const normalized = phoneDigits.startsWith('0')
+    ? `27${phoneDigits.slice(1)}`
+    : phoneDigits;
+  const text = encodeURIComponent(`Hi ${contractor.name}, I found your profile on Brick Tile Shop and would like to discuss a project.`);
+  return `https://wa.me/${normalized}?text=${text}`;
+}
+
+function useCommunityPostLikes() {
+  const [liked, setLiked] = useState<Set<string>>(() => readLikedCommunityPosts());
+
+  const togglePostLike = useCallback((id: string) => {
+    setLiked(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }, []);
+
+  const isPostLiked = useCallback((id: string) => liked.has(id), [liked]);
+  const getPostLikeCount = useCallback((post: CommunityPost) => post.stats.likes + (liked.has(post.id) ? 1 : 0), [liked]);
+
+  useEffect(() => {
+    window.localStorage.setItem(COMMUNITY_LIKES_STORAGE_KEY, JSON.stringify(Array.from(liked)));
+  }, [liked]);
+
+  return { getPostLikeCount, isPostLiked, togglePostLike };
+}
+
 // ─── Shared: Right-side Detail Drawer ────────────────────────────────────────
 function DetailDrawer<T extends { id: string }>({
   item, onClose, children
@@ -179,23 +162,473 @@ function DetailDrawer<T extends { id: string }>({
   );
 }
 
+function DirectoryQuickActions({
+  contractor,
+  onMessage,
+}: {
+  contractor: Contractor;
+  onMessage: (contractor: Contractor) => void;
+}) {
+  const whatsappHref = getWhatsAppHref(contractor);
+  const buttonClass = 'flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-white/30 transition-all hover:border-[#60a5fa]/30 hover:bg-[#60a5fa]/10 hover:text-white';
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {contractor.phone ? (
+        <a
+          href={`tel:${contractor.phone}`}
+          onClick={(event) => event.stopPropagation()}
+          className={buttonClass}
+          aria-label={`Call ${contractor.name}`}
+          title={`Call ${contractor.name}`}
+        >
+          <Phone size={14} />
+        </a>
+      ) : null}
+      {whatsappHref ? (
+        <a
+          href={whatsappHref}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(event) => event.stopPropagation()}
+          className={buttonClass}
+          aria-label={`WhatsApp ${contractor.name}`}
+          title={`WhatsApp ${contractor.name}`}
+        >
+          <MessageCircle size={14} />
+        </a>
+      ) : null}
+      {contractor.email ? (
+        <a
+          href={`mailto:${contractor.email}?subject=${encodeURIComponent(`Project enquiry via Brick Tile Shop`)}`}
+          onClick={(event) => event.stopPropagation()}
+          className={buttonClass}
+          aria-label={`Email ${contractor.name}`}
+          title={`Email ${contractor.name}`}
+        >
+          <Mail size={14} />
+        </a>
+      ) : null}
+      {contractor.verified ? (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onMessage(contractor);
+          }}
+          className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#22c55e]/20 bg-[#22c55e]/10 text-[#7dffc1] transition-all hover:bg-[#22c55e] hover:text-black"
+          aria-label={`Message ${contractor.name} in app`}
+          title={`Message ${contractor.name} in app`}
+        >
+          <MessageCircle size={14} />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function DirectoryMessageModal({
+  contractor,
+  onClose,
+}: {
+  contractor: Contractor | null;
+  onClose: () => void;
+}) {
+  const [senderName, setSenderName] = useState('');
+  const [senderEmail, setSenderEmail] = useState('');
+  const [message, setMessage] = useState('');
+  const [isSent, setIsSent] = useState(false);
+
+  useEffect(() => {
+    if (!contractor) {
+      setSenderName('');
+      setSenderEmail('');
+      setMessage('');
+      setIsSent(false);
+      return;
+    }
+
+    setMessage(`Hi ${contractor.name}, I found your profile on Brick Tile Shop and would like to discuss a project.`);
+  }, [contractor]);
+
+  return (
+    <AnimatePresence>
+      {contractor ? (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[240] flex items-center justify-center bg-black/80 p-4 backdrop-blur-md"
+        >
+          <motion.div
+            initial={{ y: 20, scale: 0.96, opacity: 0 }}
+            animate={{ y: 0, scale: 1, opacity: 1 }}
+            exit={{ y: 20, scale: 0.96, opacity: 0 }}
+            className="w-full max-w-xl overflow-hidden rounded-[32px] border border-white/10 bg-[#080808] shadow-[0_50px_140px_rgba(0,0,0,0.9)]"
+          >
+            <div className="flex items-start justify-between gap-5 border-b border-white/10 bg-white/[0.03] p-7">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.35em] text-[#22c55e]">In-app profile message</p>
+                <h3 className="mt-3 font-serif text-3xl leading-tight text-white">{contractor.name}</h3>
+                <p className="mt-2 text-xs uppercase tracking-[0.22em] text-white/35">{contractor.city} · {contractor.region}</p>
+              </div>
+              <button type="button" onClick={onClose} className="rounded-full border border-white/10 bg-white/5 p-3 text-white/45 transition-all hover:bg-white/10 hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+
+            {isSent ? (
+              <div className="space-y-5 p-7 text-center">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-[#22c55e]/20 bg-[#22c55e]/10">
+                  <CheckCircle size={24} className="text-[#22c55e]" />
+                </div>
+                <h4 className="font-serif text-2xl text-white">Message prepared</h4>
+                <p className="mx-auto max-w-md text-sm leading-7 text-white/45">
+                  This verified profile message has been captured in the app flow. When member messaging is connected to CRM/comms, this same action can create a real conversation thread.
+                </p>
+                <button type="button" onClick={onClose} className="w-full rounded-2xl bg-[#22c55e] px-5 py-4 text-[10px] font-black uppercase tracking-[0.32em] text-black transition-all hover:bg-[#7dffc1]">
+                  Close
+                </button>
+              </div>
+            ) : (
+              <form
+                className="space-y-5 p-7"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  setIsSent(true);
+                }}
+              >
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="space-y-2">
+                    <span className="text-[10px] font-black uppercase tracking-[0.26em] text-white/35">Your name</span>
+                    <input value={senderName} onChange={(event) => setSenderName(event.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-[#22c55e]/50" placeholder="Name" />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-[10px] font-black uppercase tracking-[0.26em] text-white/35">Email</span>
+                    <input value={senderEmail} onChange={(event) => setSenderEmail(event.target.value)} type="email" className="w-full rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-[#22c55e]/50" placeholder="name@example.com" />
+                  </label>
+                </div>
+                <label className="space-y-2">
+                  <span className="text-[10px] font-black uppercase tracking-[0.26em] text-white/35">Message</span>
+                  <textarea value={message} onChange={(event) => setMessage(event.target.value)} rows={5} className="custom-scrollbar w-full resize-none rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-sm leading-7 text-white outline-none transition-colors focus:border-[#22c55e]/50" />
+                </label>
+                <button type="submit" className="w-full rounded-2xl bg-[#22c55e] px-5 py-4 text-[10px] font-black uppercase tracking-[0.32em] text-black transition-all hover:bg-[#7dffc1]">
+                  Send App Message
+                </button>
+              </form>
+            )}
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+  );
+}
+
+function CommunityCaseArticle({
+  post,
+  accent,
+  liked,
+  likeCount,
+  onToggleLike,
+}: {
+  post: CommunityPost;
+  accent: string;
+  liked: boolean;
+  likeCount: number;
+  onToggleLike: () => void;
+}) {
+  const cfg = POST_TYPE_CFG[post.type];
+  const projectTone = post.type === 'built' ? 'Built case study' : post.type === 'concept' ? 'Concept case study' : 'Editorial case note';
+
+  return (
+    <div className="space-y-8">
+      <div className="relative aspect-[16/10] overflow-hidden rounded-3xl">
+        <img src={post.mediaUrl} alt={post.title} className="h-full w-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent" />
+        <div className="absolute bottom-5 left-5 right-5 flex flex-wrap items-center justify-between gap-3">
+          <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest ${cfg.color}`}>
+            <cfg.icon size={10} /> {projectTone}
+          </span>
+          <span className="rounded-full border border-white/10 bg-black/50 px-3 py-1.5 text-[9px] font-mono uppercase tracking-widest text-white/45">
+            {post.category}
+          </span>
+        </div>
+      </div>
+
+      <div>
+        <p className="mb-4 text-[9px] font-mono uppercase tracking-[0.38em]" style={{ color: accent }}>
+          Community case / {post.date}
+        </p>
+        <h2 className="font-serif text-5xl leading-tight text-white">{post.title}</h2>
+        <p className="mt-5 text-base font-light leading-8 text-white/50">{post.description}</p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        {[
+          ['Likes', formatEngagementCount(likeCount)],
+          ['Saves', formatEngagementCount(post.stats.saves)],
+          ['Comments', formatEngagementCount(post.stats.comments)],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4">
+            <div className="font-mono text-2xl text-white">{value}</div>
+            <div className="mt-1 text-[8px] font-black uppercase tracking-[0.28em] text-white/30">{label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+        <div className="mb-5 flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#22c55e]/20 bg-[#22c55e]/10">
+            <Users size={16} className="text-[#22c55e]" />
+          </div>
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-white">{post.author.name}</p>
+            <p className="mt-0.5 text-[9px] font-mono uppercase tracking-widest text-white/30">{post.author.role}</p>
+          </div>
+        </div>
+        <div className="grid gap-5 text-sm leading-7 text-white/45 md:grid-cols-2">
+          <p>
+            This case is linked to {post.relatedCategoryKeys.map((key) => key.replace(/-/g, ' ')).join(', ')} and is used as a design reference for customers comparing product tone, texture, layout, and project fit.
+          </p>
+          <p>
+            Tags and product cues help the BTS team connect this story to relevant catalog journeys, marketing assets, customer inspiration, and future member-led design submissions.
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <p className="text-[9px] uppercase tracking-widest text-white/20">Material and design tags</p>
+        <div className="flex flex-wrap gap-2">
+          {post.tags.map((tag) => (
+            <span key={tag} className="rounded-full border border-white/8 bg-white/5 px-3 py-1 text-[9px] font-mono uppercase tracking-widest text-white/40">
+              {tag}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3 border-t border-white/5 pt-4 sm:flex-row">
+        <button
+          type="button"
+          onClick={onToggleLike}
+          className={`flex flex-1 items-center justify-center gap-2 rounded-xl border py-3.5 text-[10px] font-bold uppercase tracking-widest transition-all ${
+            liked
+              ? 'border-red-500/30 bg-red-500/10 text-red-400'
+              : 'border-white/10 text-white/40 hover:border-white/20 hover:text-white'
+          }`}
+        >
+          <Heart size={14} className={liked ? 'fill-red-400' : ''} />
+          {liked ? 'Liked' : 'Like'} · {formatEngagementCount(likeCount)}
+        </button>
+        <button
+          type="button"
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 py-3.5 text-[10px] font-bold uppercase tracking-widest text-white/40 transition-all hover:border-white/20 hover:text-white"
+        >
+          <Share2 size={14} /> Share Case
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function KnowledgeArticleReader({ article, accent }: { article: KnowledgeArticle; accent: string }) {
+  return (
+    <article className="space-y-8">
+      <div className="relative aspect-[16/10] overflow-hidden rounded-3xl">
+        <img src={article.coverImage} alt={article.title} className="h-full w-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
+        <div className="absolute bottom-5 left-5 right-5 flex flex-wrap items-center justify-between gap-3">
+          <span className="rounded-full px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-black" style={{ backgroundColor: accent }}>
+            {article.type}
+          </span>
+          <span className="rounded-full border border-white/10 bg-black/50 px-3 py-1.5 text-[9px] font-mono uppercase tracking-widest text-white/45">
+            {article.readTime} read
+          </span>
+        </div>
+      </div>
+
+      <header>
+        <p className="mb-4 text-[9px] font-mono uppercase tracking-[0.38em]" style={{ color: accent }}>
+          Knowledge & Insights / {article.category}
+        </p>
+        <h2 className="font-serif text-5xl leading-tight text-white">{article.title}</h2>
+        <p className="mt-5 text-lg font-light leading-8 text-white/55">{article.excerpt}</p>
+      </header>
+
+      <div className="flex items-center gap-3 border-y border-white/5 py-4">
+        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/5">
+          <Users size={14} className="text-white/30" />
+        </div>
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-widest text-white">{article.author}</p>
+          <p className="mt-0.5 text-[9px] font-mono uppercase tracking-widest text-white/25">{article.date}</p>
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        {article.body.map((paragraph, index) => (
+          <p key={index} className="text-base font-light leading-8 text-white/55">
+            {paragraph}
+          </p>
+        ))}
+      </div>
+
+      <aside className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+        <p className="mb-4 text-[9px] font-black uppercase tracking-[0.32em] text-white/30">Key Takeaways</p>
+        <div className="space-y-3">
+          {article.takeaways.map((takeaway) => (
+            <div key={takeaway} className="flex gap-3 rounded-2xl bg-black/30 px-4 py-3">
+              <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: accent }} />
+              <span className="text-sm leading-6 text-white/55">{takeaway}</span>
+            </div>
+          ))}
+        </div>
+      </aside>
+
+      <div className="space-y-3">
+        <p className="text-[9px] uppercase tracking-widest text-white/20">Related product context</p>
+        <div className="flex flex-wrap gap-2">
+          {[...article.relatedCategoryKeys.map((key) => key.replace(/-/g, ' ')), ...article.relatedProductKeywords].map((tag) => (
+            <span key={tag} className="rounded-full border border-white/8 bg-white/5 px-3 py-1 text-[9px] font-mono uppercase tracking-widest text-white/40">
+              {tag}
+            </span>
+          ))}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function CommunityNotFoundPage({ label }: { label: string }) {
+  const navigate = useNavigate();
+
+  return (
+    <div className="min-h-screen bg-[#050505] text-white">
+      <NavigationBar />
+      <main className="mx-auto flex min-h-screen max-w-4xl flex-col items-center justify-center px-8 py-32 text-center">
+        <p className="mb-4 text-[10px] font-mono uppercase tracking-[0.4em] text-[#22c55e]">Community</p>
+        <h1 className="font-serif text-5xl leading-tight text-white">{label} not found</h1>
+        <p className="mt-5 max-w-xl text-sm leading-7 text-white/45">
+          This community item may have moved or been unpublished. Return to the community hub to keep browsing current posts, articles, and partners.
+        </p>
+        <button
+          type="button"
+          onClick={() => navigate('/community')}
+          className="mt-8 inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-6 py-4 text-[10px] font-black uppercase tracking-[0.3em] text-white/55 transition-all hover:border-[#22c55e]/30 hover:text-white"
+        >
+          <ChevronLeft size={14} /> Back To Community
+        </button>
+      </main>
+    </div>
+  );
+}
+
+function CommunityLoadingPage({ label }: { label: string }) {
+  return (
+    <div className="min-h-screen bg-[#050505] text-white">
+      <NavigationBar />
+      <main className="mx-auto flex min-h-screen max-w-4xl flex-col items-center justify-center px-8 py-32 text-center">
+        <p className="mb-4 text-[10px] font-mono uppercase tracking-[0.4em] text-[#22c55e]">Community</p>
+        <h1 className="font-serif text-5xl leading-tight text-white">Loading {label}</h1>
+        <p className="mt-5 max-w-xl text-sm leading-7 text-white/45">
+          Checking the public content feed for newly published Marketing Studio records.
+        </p>
+      </main>
+    </div>
+  );
+}
+
+export function CommunityPostPage() {
+  const { postId } = useParams();
+  const navigate = useNavigate();
+  const { getPostLikeCount, isPostLiked, togglePostLike } = useCommunityPostLikes();
+  const { communityPosts, isLoading } = usePublishedMarketingContent();
+  const post = [...communityPosts, ...POSTS].find((entry) => entry.id === postId);
+
+  if (!post) {
+    if (isLoading) {
+      return <CommunityLoadingPage label="post" />;
+    }
+    return <CommunityNotFoundPage label="Post" />;
+  }
+
+  return (
+    <div className="min-h-screen bg-[#050505] text-white">
+      <NavigationBar />
+      <main className="relative overflow-hidden px-8 pb-24 pt-32 md:px-16">
+        <div className="pointer-events-none absolute right-0 top-0 h-[520px] w-[520px] rounded-full bg-[#22c55e]/10 blur-[180px]" />
+        <div className="mx-auto max-w-5xl">
+          <button
+            type="button"
+            onClick={() => navigate('/community')}
+            className="mb-8 inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-5 py-3 text-[9px] font-black uppercase tracking-[0.3em] text-white/45 transition-all hover:border-[#22c55e]/30 hover:text-white"
+          >
+            <ChevronLeft size={14} /> Back To Community
+          </button>
+          <CommunityCaseArticle
+            post={post}
+            accent="#22c55e"
+            liked={isPostLiked(post.id)}
+            likeCount={getPostLikeCount(post)}
+            onToggleLike={() => togglePostLike(post.id)}
+          />
+        </div>
+      </main>
+    </div>
+  );
+}
+
+export function KnowledgeArticlePage() {
+  const { articleId } = useParams();
+  const navigate = useNavigate();
+  const { knowledgeArticles, isLoading } = usePublishedMarketingContent();
+  const article = [...knowledgeArticles, ...ARTICLES].find((entry) => entry.id === articleId);
+
+  if (!article) {
+    if (isLoading) {
+      return <CommunityLoadingPage label="article" />;
+    }
+    return <CommunityNotFoundPage label="Article" />;
+  }
+
+  return (
+    <div className="min-h-screen bg-[#050505] text-white">
+      <NavigationBar />
+      <main className="relative overflow-hidden px-8 pb-24 pt-32 md:px-16">
+        <div className="pointer-events-none absolute right-0 top-0 h-[520px] w-[520px] rounded-full bg-[#C5A059]/10 blur-[180px]" />
+        <div className="mx-auto max-w-5xl">
+          <button
+            type="button"
+            onClick={() => navigate('/community')}
+            className="mb-8 inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-5 py-3 text-[9px] font-black uppercase tracking-[0.3em] text-white/45 transition-all hover:border-[#C5A059]/30 hover:text-white"
+          >
+            <ChevronLeft size={14} /> Back To Community
+          </button>
+          <KnowledgeArticleReader article={article} accent="#C5A059" />
+        </div>
+      </main>
+    </div>
+  );
+}
+
 // ─── Section 1: Community Grid ────────────────────────────────────────────────
-function CommunityGrid({ accent }: { accent: string }) {
+function CommunityGrid({ accent, posts }: { accent: string; posts: CommunityPost[] }) {
+  const navigate = useNavigate();
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [catFilter, setCatFilter] = useState<string>('All');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<CommunityPost | null>(null);
-  const [liked, setLiked] = useState(new Set<string>());
   const [saved, setSaved] = useState(new Set<string>());
+  const { getPostLikeCount, isPostLiked, togglePostLike } = useCommunityPostLikes();
 
   const cats = ['All', 'Residential', 'Commercial', 'Hospitality', 'Retail', 'Landscape'];
 
-  const filtered = useMemo(() => POSTS.filter(p => {
+  const filtered = useMemo(() => posts.filter(p => {
     if (typeFilter !== 'all' && p.type !== typeFilter) return false;
     if (catFilter !== 'All' && p.category !== catFilter) return false;
     if (search && !p.title.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
-  }), [typeFilter, catFilter, search]);
+  }), [typeFilter, catFilter, search, posts]);
 
   const toggle = useCallback((set: React.Dispatch<React.SetStateAction<Set<string>>>, id: string) => {
     set(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -235,6 +668,8 @@ function CommunityGrid({ accent }: { accent: string }) {
         {filtered.map((post, i) => {
           const cfg = POST_TYPE_CFG[post.type];
           const isFirst = i === 0;
+          const isLiked = isPostLiked(post.id);
+          const likeCount = getPostLikeCount(post);
           return (
             <motion.article
               key={post.id}
@@ -270,10 +705,10 @@ function CommunityGrid({ accent }: { accent: string }) {
                     <span className="text-[9px] font-mono text-white/30 uppercase tracking-widest">{post.author.name}</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <button onClick={e => { e.stopPropagation(); toggle(setLiked, post.id); }}
-                      className="flex items-center gap-1 text-[10px] font-mono text-white/25 hover:text-red-400 transition-colors">
-                      <Heart size={11} className={liked.has(post.id) ? 'fill-red-400 text-red-400' : ''} />
-                      {post.stats.likes + (liked.has(post.id) ? 1 : 0)}
+                    <button onClick={e => { e.stopPropagation(); togglePostLike(post.id); }}
+                      className={`flex items-center gap-1 text-[10px] font-mono transition-colors ${isLiked ? 'text-red-400' : 'text-white/25 hover:text-red-400'}`}>
+                      <Heart size={11} className={isLiked ? 'fill-red-400 text-red-400' : ''} />
+                      {formatEngagementCount(likeCount)}
                     </button>
                     <button onClick={e => { e.stopPropagation(); toggle(setSaved, post.id); }}
                       className="flex items-center gap-1 text-[10px] font-mono text-white/25 hover:text-[#22c55e] transition-colors">
@@ -291,6 +726,8 @@ function CommunityGrid({ accent }: { accent: string }) {
       <DetailDrawer item={selected} onClose={() => setSelected(null)}>
         {(post) => {
           const cfg = POST_TYPE_CFG[post.type];
+          const isLiked = isPostLiked(post.id);
+          const likeCount = getPostLikeCount(post);
           return (
             <div className="space-y-8">
               <div className="aspect-[16/9] rounded-2xl overflow-hidden">
@@ -321,26 +758,34 @@ function CommunityGrid({ accent }: { accent: string }) {
               </div>
               <div className="flex gap-4 pt-4 border-t border-white/5">
                 <button
-                  onClick={() => toggle(setLiked, post.id)}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all ${liked.has(post.id) ? 'border-red-500/30 bg-red-500/10 text-red-400' : 'border-white/10 text-white/40 hover:border-white/20 hover:text-white'}`}>
-                  <Heart size={14} className={liked.has(post.id) ? 'fill-red-400' : ''} /> {liked.has(post.id) ? 'Liked' : 'Like'}
+                  type="button"
+                  onClick={() => togglePostLike(post.id)}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all ${isLiked ? 'border-red-500/30 bg-red-500/10 text-red-400' : 'border-white/10 text-white/40 hover:border-white/20 hover:text-white'}`}>
+                  <Heart size={14} className={isLiked ? 'fill-red-400' : ''} /> {isLiked ? 'Liked' : 'Like'} · {formatEngagementCount(likeCount)}
                 </button>
                 <button
+                  type="button"
+                  onClick={() => {
+                    setSelected(null);
+                    navigate(`/community/posts/${post.id}`);
+                  }}
                   className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all hover:scale-[1.02]"
                   style={{ backgroundColor: accent, color: '#000' }}>
-                  <ExternalLink size={14} /> Explore Case
+                  <ExternalLink size={14} /> View Full Post
                 </button>
               </div>
             </div>
           );
         }}
       </DetailDrawer>
+
     </>
   );
 }
 
 // ─── Section 2: Knowledge Grid ────────────────────────────────────────────────
-function KnowledgeGrid({ accent }: { accent: string }) {
+function KnowledgeGrid({ accent, articles }: { accent: string; articles: KnowledgeArticle[] }) {
+  const navigate = useNavigate();
   const [filter, setFilter] = useState<string>('all');
   const [selected, setSelected] = useState<KnowledgeArticle | null>(null);
 
@@ -348,7 +793,7 @@ function KnowledgeGrid({ accent }: { accent: string }) {
   const labels: Record<string, string> = { all: 'All Insights', guide: 'Guides', trend: 'Trends', news: 'News', blog: 'Blog', tips: 'Tips' };
 
   const filtered = useMemo(() =>
-    ARTICLES.filter(a => filter === 'all' || a.type === filter), [filter]);
+    articles.filter(a => filter === 'all' || a.type === filter), [articles, filter]);
 
   const featured = filtered.find(a => a.featured) || filtered[0];
   const rest = filtered.filter(a => a.id !== featured?.id);
@@ -444,12 +889,21 @@ function KnowledgeGrid({ accent }: { accent: string }) {
               </div>
             </div>
             <p className="text-white/50 text-base leading-relaxed font-light">{art.excerpt}</p>
-            <button className="w-full py-4 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all hover:scale-[1.02]" style={{ backgroundColor: accent, color: '#000' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setSelected(null);
+                navigate(`/community/articles/${art.id}`);
+              }}
+              className="w-full py-4 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all hover:scale-[1.02]"
+              style={{ backgroundColor: accent, color: '#000' }}
+            >
               Read Full Article
             </button>
           </div>
         )}
       </DetailDrawer>
+
     </>
   );
 }
@@ -460,6 +914,7 @@ function DirectoryGrid({ accent }: { accent: string }) {
   const [typeFilter, setTypeFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Contractor | null>(null);
+  const [messageTarget, setMessageTarget] = useState<Contractor | null>(null);
 
   const regions = ['All', 'Western Cape', 'Gauteng', 'KwaZulu-Natal', 'Eastern Cape'];
   const types = [['all', 'All Types', Users], ['builder', 'Builders', HardHat], ['architect', 'Architects', Building2], ['interior_designer', 'Interiors', Palette], ['landscape', 'Landscape', Layout]] as const;
@@ -535,6 +990,10 @@ function DirectoryGrid({ accent }: { accent: string }) {
                   <span key={s} className="px-2 py-0.5 bg-white/5 text-white/25 text-[8px] font-mono uppercase tracking-widest rounded">{s}</span>
                 ))}
               </div>
+              <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/5 pt-4">
+                <span className="text-[8px] font-mono uppercase tracking-[0.24em] text-white/20">Quick contact</span>
+                <DirectoryQuickActions contractor={c} onMessage={setMessageTarget} />
+              </div>
             </motion.div>
           );
         })}
@@ -544,6 +1003,9 @@ function DirectoryGrid({ accent }: { accent: string }) {
       <DetailDrawer item={selected} onClose={() => setSelected(null)}>
         {(c) => {
           const { label: typeLabel, Icon } = CTYPE_CFG[c.type];
+          const collaborationHref = c.email
+            ? `mailto:${c.email}?subject=${encodeURIComponent('Project collaboration via Brick Tile Shop')}`
+            : getWhatsAppHref(c) ?? (c.phone ? `tel:${c.phone}` : null);
           return (
             <div className="space-y-8">
               <div className="flex items-start gap-6">
@@ -579,13 +1041,43 @@ function DirectoryGrid({ accent }: { accent: string }) {
                 {c.email && <a href={`mailto:${c.email}`} className="flex items-center gap-3 text-sm text-white/50 hover:text-white transition-colors"><Mail size={15} className="text-white/20" /> {c.email}</a>}
                 {c.website && <a href={`https://${c.website}`} target="_blank" rel="noreferrer" className="flex items-center gap-3 text-sm text-white/50 hover:text-white transition-colors"><Globe size={15} className="text-white/20" /> {c.website}</a>}
               </div>
-              <button className="w-full py-4 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all hover:scale-[1.02]" style={{ backgroundColor: accent, color: '#000' }}>
-                Request Collaboration
-              </button>
+              <div className="rounded-2xl border border-white/8 p-6">
+                <p className="mb-4 text-[9px] uppercase tracking-widest text-white/20">Quick Actions</p>
+                <DirectoryQuickActions contractor={c} onMessage={setMessageTarget} />
+              </div>
+              {c.verified ? (
+                <button
+                  type="button"
+                  onClick={() => setMessageTarget(c)}
+                  className="w-full py-4 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all hover:scale-[1.02]"
+                  style={{ backgroundColor: accent, color: '#000' }}
+                >
+                  Request Collaboration
+                </button>
+              ) : collaborationHref ? (
+                <a
+                  href={collaborationHref}
+                  target={collaborationHref.startsWith('http') ? '_blank' : undefined}
+                  rel={collaborationHref.startsWith('http') ? 'noreferrer' : undefined}
+                  className="block w-full rounded-xl py-4 text-center text-[10px] font-bold uppercase tracking-widest transition-all hover:scale-[1.02]"
+                  style={{ backgroundColor: accent, color: '#000' }}
+                >
+                  Request Collaboration
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="w-full rounded-xl border border-white/10 py-4 text-[10px] font-bold uppercase tracking-widest text-white/25"
+                >
+                  Contact Details Pending
+                </button>
+              )}
             </div>
           );
         }}
       </DetailDrawer>
+      <DirectoryMessageModal contractor={messageTarget} onClose={() => setMessageTarget(null)} />
     </>
   );
 }
@@ -594,6 +1086,9 @@ function DirectoryGrid({ accent }: { accent: string }) {
 export function DesignCommunity() {
   const [activeIdx, setActiveIdx] = useState<SectionId>(0);
   const vol = VOLUMES[activeIdx];
+  const publishedContent = usePublishedMarketingContent();
+  const communityPosts = useMemo(() => [...publishedContent.communityPosts, ...POSTS], [publishedContent.communityPosts]);
+  const knowledgeArticles = useMemo(() => [...publishedContent.knowledgeArticles, ...ARTICLES], [publishedContent.knowledgeArticles]);
 
   const nav = (dir: 1 | -1) => {
     setActiveIdx(prev => Math.max(0, Math.min(2, (prev + dir) as SectionId)) as SectionId);
@@ -719,8 +1214,8 @@ export function DesignCommunity() {
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.45, ease: 'easeOut' }}
           >
-            {activeIdx === 0 && <CommunityGrid accent={vol.accent} />}
-            {activeIdx === 1 && <KnowledgeGrid accent={vol.accent} />}
+            {activeIdx === 0 && <CommunityGrid accent={vol.accent} posts={communityPosts} />}
+            {activeIdx === 1 && <KnowledgeGrid accent={vol.accent} articles={knowledgeArticles} />}
             {activeIdx === 2 && <DirectoryGrid accent={vol.accent} />}
           </motion.div>
         </AnimatePresence>

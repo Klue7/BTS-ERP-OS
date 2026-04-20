@@ -20,6 +20,52 @@ enum ProductPublishStatus {
   PUBLISHED
 }
 
+enum ProductTestResultType {
+  COMPRESSIVE_STRENGTH_MPA
+  WATER_ABSORPTION_PERCENT
+  LENGTH_MM_TESTED
+  WIDTH_MM_TESTED
+  HEIGHT_MM_TESTED
+  DRY_MASS_KG
+  WET_MASS_KG
+  BREAKING_LOAD_KN
+}
+
+enum ProductDistributionChannel {
+  META_CATALOG
+  WHATSAPP_CATALOG
+  GOOGLE_MERCHANT_CENTER
+  TIKTOK_SHOP
+}
+
+enum DistributionChannelType {
+  CATALOG
+  MARKETPLACE
+  MESSAGING
+}
+
+enum DistributionConnectionStatus {
+  NOT_CONNECTED
+  CONNECTED
+  DEGRADED
+  ERROR
+}
+
+enum DistributionPublicationStatus {
+  NOT_POSTED
+  QUEUED
+  SYNCING
+  LIVE
+  PAUSED
+  FAILED
+  ARCHIVED
+}
+
+enum DistributionSyncMode {
+  MANUAL
+  API
+}
+
 enum ProductCategory {
   CLADDING
   BRICKS
@@ -90,6 +136,171 @@ enum SupplierType {
   MANUFACTURER
   DISTRIBUTOR
   WHOLESALER
+  TRANSPORT_PARTNER
+}
+
+enum SupplierVendorRole {
+  PRODUCT_SUPPLIER
+  TRANSPORT_PARTNER
+}
+
+enum PreferredContactChannel {
+  EMAIL
+  PHONE
+  WHATSAPP
+  PORTAL
+}
+
+enum VendorDocumentType {
+  AGREEMENT
+  TEST_RESULT
+  PLAN
+  CERTIFICATION
+  PURCHASE_ORDER
+  DELIVERY_NOTE
+  INVOICE
+  OTHER
+}
+
+enum VendorWorkflowEventType {
+  VENDOR_CREATED
+  VENDOR_UPDATED
+  VENDOR_DOCUMENT_UPLOADED
+  PRODUCT_VENDOR_LINKED
+  PURCHASE_ORDER_CREATED
+  PURCHASE_ORDER_SENT
+  DELIVERY_NOTE_CREATED
+  TRANSPORT_JOB_CREATED
+  DISPATCH_CONFIRMED
+  POD_RECEIVED
+  SUPPLIER_INVOICE_RECEIVED
+  PAYMENT_APPLIED
+}
+
+enum DomainAggregateType {
+  SUPPLIER
+  PRODUCT
+  PURCHASE_ORDER
+  STOCK_MOVEMENT
+  PRICE_LIST_IMPORT
+  LOGISTICS_QUOTE
+  TRANSPORT_JOB
+  PAYMENT
+  SYSTEM
+}
+
+enum DomainEventType {
+  PRODUCT_CREATED
+  PRODUCT_UPDATED
+  PRODUCT_PUBLISHED
+  PRODUCT_ASSET_ATTACHED
+  SUPPLIER_CREATED
+  SUPPLIER_UPDATED
+  SUPPLIER_DELETED
+  SUPPLIER_CONTACT_CREATED
+  SUPPLIER_DOCUMENT_UPLOADED
+  PRODUCT_VENDOR_LINKED
+  STOCK_UPDATED
+  PRICE_LIST_IMPORT_APPLIED
+  LOGISTICS_QUOTE_CREATED
+  QUOTE_ISSUED
+  QUOTE_PAID
+  PURCHASE_ORDER_CREATED
+  PURCHASE_ORDER_SENT
+  DELIVERY_NOTE_CREATED
+  TRANSPORT_JOB_CREATED
+  DISPATCH_CONFIRMED
+  POD_RECEIVED
+  SUPPLIER_INVOICE_RECEIVED
+  PAYMENT_APPLIED
+}
+
+enum DomainEventStatus {
+  PENDING
+  PUBLISHED
+  FAILED
+}
+
+enum CommsProvider {
+  WHATSAPP
+  EMAIL
+  FACEBOOK
+  INSTAGRAM
+  LINKEDIN
+  PINTEREST
+  TIKTOK
+  WEB
+  INTERNAL
+}
+
+enum CommsConnectionStatus {
+  CONNECTED
+  DEGRADED
+  DISCONNECTED
+  SIMULATED
+}
+
+enum CommsConversationStatus {
+  OPEN
+  RESOLVED
+  FLAGGED
+  ARCHIVED
+}
+
+enum CommsConversationCategory {
+  LEAD
+  SUPPORT
+  QUOTE
+  PAYMENT
+  DELIVERY
+  GENERAL
+}
+
+enum CommsConversationPriority {
+  LOW
+  NORMAL
+  HIGH
+  CRITICAL
+}
+
+enum CommsMessageDirection {
+  INBOUND
+  OUTBOUND
+  INTERNAL
+}
+
+enum CommsMessageStatus {
+  RECEIVED
+  SENT
+  QUEUED
+  FAILED
+  READ
+}
+
+enum CommsActionType {
+  LINK_CUSTOMER
+  CREATE_LEAD
+  CONVERT_QUOTE
+  CREATE_TASK
+  REQUEST_INFO
+  SUPPORT_ISSUE
+  RESOLVE
+  ASSIGN
+  TAG
+}
+
+enum CommsActionStatus {
+  OPEN
+  COMPLETED
+  FAILED
+}
+
+enum CustomerPortalInviteStatus {
+  PROVISIONAL
+  READY
+  INVITE_SENT
+  VERIFIED
+  DISABLED
 }
 
 enum LocationType {
@@ -170,6 +381,34 @@ enum GoodsReceiptStatus {
   CANCELLED
 }
 
+enum BusinessDocumentType {
+  CUSTOMER_QUOTE
+  CUSTOMER_ORDER
+  CUSTOMER_INVOICE
+  PURCHASE_ORDER
+  GOODS_RECEIPT
+  DELIVERY_NOTE
+  PROOF_OF_DELIVERY
+  SUPPLIER_INVOICE
+  CREDIT_NOTE
+}
+
+enum BusinessDocumentStatus {
+  DRAFT
+  PENDING
+  ISSUED
+  SENT
+  CONFIRMED
+  PARTIAL
+  OVERDUE
+  PAID
+  RECEIVED
+  DELIVERED
+  CANCELLED
+  EXPIRED
+  FLAGGED
+}
+
 enum ImportSourceType {
   CSV
   XLSX
@@ -186,6 +425,137 @@ enum ImportStatus {
 enum AssetLinkType {
   PRODUCT
   CAMPAIGN
+}
+
+enum MarketingTemplateType {
+  PRODUCT_CARD
+  COLLECTION_HIGHLIGHT
+  QUOTE_CTA
+}
+
+enum MarketingTemplateStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum MarketingCampaignStatus {
+  ACTIVE
+  DRAFT
+  COMPLETED
+  SCHEDULED
+}
+
+enum MarketingChannel {
+  INSTAGRAM
+  FACEBOOK
+  TIKTOK
+  LINKEDIN
+  EMAIL
+  WHATSAPP
+  PINTEREST
+}
+
+enum MarketingCalendarEntryStatus {
+  SCHEDULED
+  PUBLISHED
+  FAILED
+  DRAFT
+}
+
+enum MarketingCalendarEntryType {
+  POST
+  NOTE
+  REMINDER
+}
+
+enum MarketingPublishingJobStatus {
+  QUEUED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+  RETRYING
+}
+
+enum CreativeDocumentStatus {
+  DRAFT
+  REVIEW
+  APPROVED
+  ARCHIVED
+}
+
+enum CreativeWorkspaceMode {
+  PRODUCT_DESIGN
+  CUTOUT
+  ROOM_RESTYLE
+}
+
+enum CreativeLayerType {
+  IMAGE
+  TEXT
+  SHAPE
+  LOGO
+  PRODUCT_CARD
+  BRAND_BLOCK
+  ROOM_MASK
+}
+
+enum CreativeDocumentLinkType {
+  PRODUCT
+  CAMPAIGN
+  TEMPLATE
+  ASSET
+  PUBLISH_TARGET
+}
+
+enum CreativeExportPreset {
+  HOME_HERO
+  SQUARE_POST
+  PORTRAIT_STORY
+  WHATSAPP_SHARE
+  EMAIL_BANNER
+  CUSTOM
+}
+
+enum CreativeExportJobStatus {
+  DRAFT
+  QUEUED
+  PROCESSING
+  REVIEW
+  APPROVED
+  FAILED
+  ARCHIVED
+}
+
+enum CreativeAiJobType {
+  BACKGROUND_REMOVAL
+  OBJECT_CLEANUP
+  IMAGE_EXPANSION
+  AUTO_CAPTION
+  AUTO_LAYOUT
+  ROOM_SEGMENTATION
+  ROOM_RESTYLE
+}
+
+enum CreativeAiJobStatus {
+  DRAFT
+  QUEUED
+  PROCESSING
+  REVIEW
+  APPROVED
+  FAILED
+  ARCHIVED
+}
+
+enum MarketingChannelHealthStatus {
+  HEALTHY
+  DEGRADED
+  DOWN
+}
+
+enum MarketingCommunityMediaType {
+  IMAGE
+  VIDEO
 }
 
 enum ProductHistoryEventType {
@@ -219,6 +589,13 @@ model Product {
   galleryImageUrl         String?
   faceImageUrl            String?
   heroImageUrl            String?
+  latestTestReportUrl     String?
+  latestTestReportName    String?
+  latestTestLaboratoryName String?
+  latestTestMethodStandard String?
+  latestTestReportReference String?
+  latestTestedAt          DateTime?
+  latestTestIssuedAt      DateTime?
   description             String
   marketingCopy           String?
   technicalSpecifications Json
@@ -229,6 +606,9 @@ model Product {
   faceAreaM2              Decimal?                  @db.Decimal(10, 4)
   unitsPerM2              Decimal?                  @db.Decimal(10, 4)
   weightKg                Decimal?                  @db.Decimal(10, 3)
+  piecesPerPallet         Int                       @default(1)
+  boxesPerPallet          Int?
+  palletsPerTruck         Int                       @default(24)
   reorderPoint            Int                       @default(0)
   createdAt               DateTime                  @default(now())
   updatedAt               DateTime                  @updatedAt
@@ -240,6 +620,13 @@ model Product {
   importRows              PriceListImportRow[]
   logisticsQuotes         LogisticsQuoteSnapshot[]
   assetLinks              AssetLink[]
+  marketingCampaignLinks  MarketingCampaignProduct[]
+  creativeDocuments       CreativeDocument[]
+  creativeDocumentLinks   CreativeDocumentLink[]
+  distributionPublications ProductDistributionPublication[]
+  testResults             ProductTestResult[]
+  businessDocuments       BusinessDocument[]
+  domainEvents            DomainEventOutbox[]
 
   @@index([category])
   @@index([productType])
@@ -247,19 +634,225 @@ model Product {
   @@index([availabilityStatus])
 }
 
+model CustomerProfile {
+  id                      String                   @id @default(uuid())
+  customerKey             String                   @unique
+  name                    String
+  customerType            String?
+  stage                   String?
+  email                   String?
+  phone                   String?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  documents               BusinessDocument[]
+  commsExternalIdentities CommsExternalIdentity[]
+  commsConversations      CommsConversation[]
+  customerPortalInvites   CustomerPortalInvite[]
+
+  @@index([name])
+  @@index([email])
+  @@index([phone])
+}
+
+model CommsChannelConnection {
+  id                String                  @id @default(uuid())
+  connectionKey     String                  @unique
+  provider          CommsProvider
+  label             String
+  status            CommsConnectionStatus   @default(SIMULATED)
+  externalAccountId String?
+  lastSyncedAt      DateTime?
+  syncError         String?
+  metadata          Json?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  conversations     CommsConversation[]
+
+  @@index([provider, status])
+}
+
+model CommsExternalIdentity {
+  id               String              @id @default(uuid())
+  provider         CommsProvider
+  externalUserId   String
+  displayName      String?
+  handle           String?
+  email            String?
+  phone            String?
+  confidenceScore  Int                 @default(0)
+  isVerified       Boolean             @default(false)
+  rawProfile       Json?
+  customerId       String?
+  firstSeenAt      DateTime            @default(now())
+  lastSeenAt       DateTime            @default(now())
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  customer         CustomerProfile?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  conversations    CommsConversation[]
+
+  @@unique([provider, externalUserId])
+  @@index([customerId])
+  @@index([email])
+  @@index([phone])
+}
+
+model CommsConversation {
+  id                 String                      @id @default(uuid())
+  conversationKey    String                      @unique
+  provider           CommsProvider
+  externalThreadId   String?
+  channelConnectionId String?
+  externalIdentityId String?
+  customerId         String?
+  customerName       String
+  subject            String?
+  status             CommsConversationStatus     @default(OPEN)
+  category           CommsConversationCategory   @default(GENERAL)
+  priority           CommsConversationPriority   @default(NORMAL)
+  assignedTo         String?
+  sourceUrl          String?
+  lastMessage        String?
+  lastMessageAt      DateTime                    @default(now())
+  unreadCount        Int                         @default(0)
+  metadata           Json?
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+  channelConnection  CommsChannelConnection?     @relation(fields: [channelConnectionId], references: [id], onDelete: SetNull)
+  externalIdentity   CommsExternalIdentity?      @relation(fields: [externalIdentityId], references: [id], onDelete: SetNull)
+  customer           CustomerProfile?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  messages           CommsMessage[]
+  actions            CommsAction[]
+  portalInvites      CustomerPortalInvite[]
+
+  @@unique([provider, externalThreadId])
+  @@index([status, lastMessageAt])
+  @@index([provider, status])
+  @@index([customerId])
+  @@index([externalIdentityId])
+}
+
+model CommsMessage {
+  id                String                  @id @default(uuid())
+  messageKey        String                  @unique
+  conversationId    String
+  direction         CommsMessageDirection
+  status            CommsMessageStatus      @default(RECEIVED)
+  senderRole        String
+  senderName        String
+  body              String
+  externalMessageId String?
+  attachments       Json?
+  metadata          Json?
+  occurredAt        DateTime                @default(now())
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  conversation      CommsConversation       @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, occurredAt])
+  @@index([direction, status])
+}
+
+model CommsAction {
+  id             String              @id @default(uuid())
+  actionKey      String              @unique
+  conversationId String
+  actionType     CommsActionType
+  status         CommsActionStatus   @default(OPEN)
+  label          String
+  actorLabel     String?
+  payload        Json?
+  occurredAt     DateTime            @default(now())
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  conversation   CommsConversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, occurredAt])
+  @@index([actionType, status])
+}
+
+model CustomerPortalInvite {
+  id                   String                     @id @default(uuid())
+  inviteKey            String                     @unique
+  customerId           String
+  sourceConversationId String?
+  status               CustomerPortalInviteStatus @default(PROVISIONAL)
+  portalPath           String                     @default("/portal")
+  email                String?
+  phone                String?
+  lastSentAt           DateTime?
+  metadata             Json?
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+  customer             CustomerProfile            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  sourceConversation   CommsConversation?         @relation(fields: [sourceConversationId], references: [id], onDelete: SetNull)
+
+  @@index([customerId, status])
+  @@index([sourceConversationId])
+}
+
+model ProductTestResult {
+  id          String                @id @default(uuid())
+  productId   String
+  resultType  ProductTestResultType
+  resultValue Decimal               @db.Decimal(12, 4)
+  resultUnit  String
+  notes       String?
+  sortOrder   Int                   @default(0)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  product     Product               @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, resultType])
+  @@index([productId, sortOrder])
+}
+
+model ProductDistributionPublication {
+  id                String                        @id @default(uuid())
+  productId         String
+  channel           ProductDistributionChannel
+  channelType       DistributionChannelType
+  connectionStatus  DistributionConnectionStatus @default(NOT_CONNECTED)
+  publicationStatus DistributionPublicationStatus @default(NOT_POSTED)
+  syncMode          DistributionSyncMode         @default(MANUAL)
+  externalCatalogId String?
+  externalListingId String?
+  externalUrl       String?
+  lastSyncedAt      DateTime?
+  lastSyncError     String?
+  publishedAt       DateTime?
+  unpublishedAt     DateTime?
+  metadata          Json?
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
+  product           Product                      @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, channel])
+  @@index([channel])
+  @@index([publicationStatus])
+}
+
 model Supplier {
   id                 String                   @id @default(uuid())
   supplierKey        String                   @unique
   name               String
+  registeredName     String?
+  tradingName        String?
   logoUrl            String?
   status             SupplierStatus           @default(ACTIVE)
   supplierType       SupplierType
+  vendorRoles        SupplierVendorRole[]     @default([PRODUCT_SUPPLIER])
   capabilities       String[]
   regionLabel        String
   leadTimeDays       Int?
   leadTimeLabel      String?
   rating             Decimal?                 @db.Decimal(3, 2)
   blocker            String?
+  defaultCurrency    String                   @default("ZAR")
+  vatRegistered      Boolean                  @default(false)
+  vatNumber          String?
+  providesProducts   Boolean                  @default(true)
+  providesTransport  Boolean                  @default(false)
+  notes              String?
   contacts           Json?
   terms              Json?
   performance        Json?
@@ -271,8 +864,15 @@ model Supplier {
   locations          FulfillmentLocation[]
   productSuppliers   ProductSupplier[]
   purchaseOrders     PurchaseOrder[]
+  businessDocuments  BusinessDocument[]
   rateCards          LogisticsRateCard[]
   logisticsQuotes    LogisticsQuoteSnapshot[]
+  vendorContacts     VendorContact[]
+  documents          VendorDocument[]
+  commercialAccount  VendorCommercialAccount?
+  vendorUsers        VendorUser[]
+  workflowEvents     VendorWorkflowEvent[]
+  domainEvents       DomainEventOutbox[]
 
   @@index([status])
 }
@@ -283,6 +883,8 @@ model FulfillmentLocation {
   supplierId       String?
   type             LocationType
   label            String
+  streetAddress    String?
+  postalCode       String?
   country          String
   region           String
   city             String
@@ -298,6 +900,129 @@ model FulfillmentLocation {
 
   @@unique([supplierId, label])
   @@index([type])
+}
+
+model VendorContact {
+  id               String                  @id @default(uuid())
+  supplierId       String
+  department       String
+  roleTitle        String?
+  name             String
+  email            String
+  phone            String?
+  preferredChannel PreferredContactChannel @default(EMAIL)
+  notes            String?
+  isPrimary        Boolean                 @default(false)
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  supplier         Supplier                @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId, department])
+}
+
+model VendorDocument {
+  id               String             @id @default(uuid())
+  supplierId       String
+  documentKey      String             @unique
+  name             String
+  documentType     VendorDocumentType
+  storagePath      String
+  storedFileName   String
+  mimeType         String?
+  uploadedBy       String?
+  fileSizeBytes    Int?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  supplier         Supplier           @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId, documentType])
+}
+
+model VendorCommercialAccount {
+  id                     String    @id @default(uuid())
+  supplierId             String    @unique
+  paymentTerms           String?
+  deliveryTerms          String?
+  minimumOrderValueZar   Decimal?  @db.Decimal(12, 2)
+  standardDiscountPct    Decimal?  @db.Decimal(5, 2)
+  moq                    String?
+  currency               String    @default("ZAR")
+  incoterms              String?
+  creditLimitZar         Decimal?  @db.Decimal(12, 2)
+  currentCreditBalanceZar Decimal  @default(0) @db.Decimal(12, 2)
+  vatRegistered          Boolean   @default(false)
+  vatNumber              String?
+  standardVatRatePct     Decimal   @default(15) @db.Decimal(5, 2)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  supplier               Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+}
+
+model VendorUser {
+  id           String          @id @default(uuid())
+  supplierId   String
+  email        String          @unique
+  passwordHash String
+  fullName     String
+  roleLabel    String
+  isActive     Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  lastLoginAt  DateTime?
+  supplier     Supplier        @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  sessions     VendorSession[]
+}
+
+model VendorSession {
+  id               String     @id @default(uuid())
+  userId           String
+  sessionTokenHash String     @unique
+  expiresAt        DateTime
+  createdAt        DateTime   @default(now())
+  lastSeenAt       DateTime   @default(now())
+  user             VendorUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model VendorWorkflowEvent {
+  id             String                  @id @default(uuid())
+  eventKey       String                  @unique
+  supplierId     String?
+  eventType      VendorWorkflowEventType
+  actorLabel     String?
+  payload        Json?
+  occurredAt     DateTime
+  createdAt      DateTime                @default(now())
+  supplier       Supplier?               @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId, occurredAt])
+  @@index([eventType, occurredAt])
+}
+
+model DomainEventOutbox {
+  id              String             @id @default(uuid())
+  eventKey        String             @unique
+  eventType       DomainEventType
+  aggregateType   DomainAggregateType
+  aggregateId     String
+  supplierId      String?
+  productId       String?
+  payload         Json?
+  status          DomainEventStatus  @default(PENDING)
+  publishAttempts Int                @default(0)
+  occurredAt      DateTime
+  publishedAt     DateTime?
+  lastError       String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  supplier        Supplier?          @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  product         Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([status, occurredAt])
+  @@index([aggregateType, aggregateId, occurredAt])
+  @@index([supplierId, occurredAt])
+  @@index([productId, occurredAt])
 }
 
 model ProductSupplier {
@@ -360,6 +1085,7 @@ model PurchaseOrder {
   originLocation   FulfillmentLocation @relation(fields: [originLocationId], references: [id], onDelete: Restrict)
   lines            PurchaseOrderLine[]
   receipts         GoodsReceipt[]
+  businessDocuments BusinessDocument[]
 
   @@index([supplierId, orderedAt])
 }
@@ -389,8 +1115,77 @@ model GoodsReceipt {
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
   purchaseOrder   PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  businessDocuments BusinessDocument[]
 
   @@index([purchaseOrderId])
+}
+
+model BusinessDocument {
+  id               String                 @id @default(uuid())
+  documentKey      String                 @unique
+  documentType     BusinessDocumentType
+  status           BusinessDocumentStatus
+  title            String
+  customerId       String?
+  supplierId       String?
+  productId        String?
+  purchaseOrderId  String?
+  goodsReceiptId   String?
+  parentDocumentId String?
+  issuedAt         DateTime
+  dueAt            DateTime?
+  totalAmount      Decimal                @db.Decimal(12, 2)
+  balanceAmount    Decimal?               @db.Decimal(12, 2)
+  currency         String                 @default("ZAR")
+  snapshot         Json
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  customer         CustomerProfile?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  supplier         Supplier?              @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  product          Product?               @relation(fields: [productId], references: [id], onDelete: SetNull)
+  purchaseOrder    PurchaseOrder?         @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  goodsReceipt     GoodsReceipt?          @relation(fields: [goodsReceiptId], references: [id], onDelete: SetNull)
+  parentDocument   BusinessDocument?      @relation("BusinessDocumentLinks", fields: [parentDocumentId], references: [id], onDelete: SetNull)
+  childDocuments   BusinessDocument[]     @relation("BusinessDocumentLinks")
+
+  @@index([customerId, issuedAt])
+  @@index([supplierId, issuedAt])
+  @@index([productId, issuedAt])
+  @@index([purchaseOrderId])
+  @@index([goodsReceiptId])
+  @@index([documentType, issuedAt])
+}
+
+model WorkflowEvent {
+  id              String   @id @default(uuid())
+  eventKey        String   @unique
+  workflowId      String
+  type            String
+  label           String
+  sourceModule    String
+  occurredAt      DateTime @default(now())
+  customerKey     String?
+  conversationId  String?
+  quoteId         String?
+  salesOrderId    String?
+  purchaseOrderId String?
+  logisticsId     String?
+  invoiceId       String?
+  supplierKey     String?
+  productId       String?
+  sourceRecordId  String?
+  amountZar       Decimal? @db.Decimal(12, 2)
+  statusFrom      String?
+  statusTo        String?
+  subject         Json
+  payload         Json?
+  createdAt       DateTime @default(now())
+
+  @@index([workflowId, occurredAt])
+  @@index([type, occurredAt])
+  @@index([customerKey, occurredAt])
+  @@index([conversationId])
+  @@index([sourceRecordId])
 }
 
 model PriceListImportBatch {
@@ -425,6 +1220,9 @@ model PriceListImportRow {
   widthMm          Int?
   heightMm         Int?
   weightKg         Decimal?             @db.Decimal(10, 3)
+  piecesPerPallet  Int?
+  boxesPerPallet   Int?
+  palletsPerTruck  Int?
   primaryImageUrl  String?
   galleryImageUrl  String?
   faceImageUrl     String?
@@ -454,6 +1252,12 @@ model ProductAsset {
   approvalStatus        AssetApprovalStatus
   sizeLabel             String
   imageUrl              String
+  originalFileName      String?
+  storedFileName        String?
+  storagePath           String?
+  mimeType              String?
+  fileSizeBytes         Int?
+  sha256                String?
   usageRoles            AssetRole[]
   parentAssetId         String?
   completeness          Int?
@@ -469,6 +1273,14 @@ model ProductAsset {
   parentAsset           ProductAsset?        @relation("AssetParent", fields: [parentAssetId], references: [id], onDelete: SetNull)
   variants              ProductAsset[]       @relation("AssetParent")
   links                 AssetLink[]
+  marketingCampaignLinks MarketingCampaignAsset[]
+  calendarEntries       MarketingCalendarEntry[]
+  publishingJobs        MarketingPublishingJob[]
+  creativeDocumentLayers CreativeDocumentLayer[]
+  creativeDocumentLinks  CreativeDocumentLink[]
+  creativeExportJobs     CreativeExportJob[]
+  creativeAiSourceJobs   CreativeAiJob[]       @relation("CreativeAiSourceAsset")
+  creativeAiOutputJobs   CreativeAiJob[]        @relation("CreativeAiOutputAsset")
 
   @@index([primaryProductId])
   @@index([approvalStatus])
@@ -487,6 +1299,381 @@ model AssetLink {
   @@index([assetId, linkType])
   @@index([productId])
   @@index([campaignKey])
+}
+
+model MarketingTemplate {
+  id                   String                  @id @default(uuid())
+  templateKey          String                  @unique
+  name                 String
+  description          String
+  templateType         MarketingTemplateType
+  thumbnailUrl         String
+  blueprint            String
+  destination          String?
+  tags                 Json?
+  allowedTargets       Json?
+  publicSurfaceEligible Boolean               @default(false)
+  canvasWidth          Int                    @default(1080)
+  canvasHeight         Int                    @default(1080)
+  aspectRatio          String                 @default("1:1")
+  safeZone             Json?
+  layoutJson           Json?
+  styleJson            Json?
+  behaviorJson         Json?
+  status               MarketingTemplateStatus @default(ACTIVE)
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  creativeDocuments    CreativeDocument[]
+  creativeDocumentLinks CreativeDocumentLink[]
+}
+
+model MarketingCampaign {
+  id               String                   @id @default(uuid())
+  campaignKey      String                   @unique
+  name             String
+  owner            String
+  description      String
+  status           MarketingCampaignStatus
+  startDate        DateTime
+  endDate          DateTime
+  channels         MarketingChannel[]
+  budgetLabel      String
+  workflowNode     String?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  products         MarketingCampaignProduct[]
+  assets           MarketingCampaignAsset[]
+  calendarEntries  MarketingCalendarEntry[]
+  publishingJobs   MarketingPublishingJob[]
+  analyticsSnapshots MarketingAnalyticsSnapshot[]
+  communityPosts   MarketingCommunityPost[]
+  creativeDocuments CreativeDocument[]
+  creativeDocumentLinks CreativeDocumentLink[]
+
+  @@index([status, startDate])
+}
+
+model MarketingCampaignProduct {
+  id         String            @id @default(uuid())
+  campaignId String
+  productId  String
+  createdAt  DateTime          @default(now())
+  campaign   MarketingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  product    Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, productId])
+  @@index([productId])
+}
+
+model MarketingCampaignAsset {
+  id         String            @id @default(uuid())
+  campaignId String
+  assetId    String
+  createdAt  DateTime          @default(now())
+  campaign   MarketingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  asset      ProductAsset      @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, assetId])
+  @@index([assetId])
+}
+
+model MarketingCalendarEntry {
+  id           String                     @id @default(uuid())
+  entryKey     String                     @unique
+  campaignId   String?
+  assetId      String?
+  entryType    MarketingCalendarEntryType @default(POST)
+  title        String
+  description  String?
+  channel      MarketingChannel?
+  scheduledFor DateTime
+  status       MarketingCalendarEntryStatus
+  workflowNode String?
+  createdAt    DateTime                   @default(now())
+  updatedAt    DateTime                   @updatedAt
+  campaign     MarketingCampaign?         @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  asset        ProductAsset?              @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  publishingJobs MarketingPublishingJob[]
+
+  @@index([scheduledFor])
+  @@index([campaignId])
+}
+
+model MarketingPublishingJob {
+  id              String                     @id @default(uuid())
+  jobKey          String                     @unique
+  campaignId      String?
+  calendarEntryId String?
+  assetId         String?
+  creativeName    String
+  channel         MarketingChannel
+  status          MarketingPublishingJobStatus
+  queuedAt        DateTime
+  progress        Int?
+  errorMessage    String?
+  syncError       String?
+  externalProvider String?
+  externalPostId  String?
+  externalPostUrl String?
+  externalStatus  String?
+  externalMetrics Json?
+  publishedAt     DateTime?
+  lastSyncedAt    DateTime?
+  workflowNode    String?
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+  campaign        MarketingCampaign?         @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  calendarEntry   MarketingCalendarEntry?    @relation(fields: [calendarEntryId], references: [id], onDelete: SetNull)
+  asset           ProductAsset?              @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
+  @@index([status, queuedAt])
+  @@index([campaignId])
+  @@index([calendarEntryId])
+}
+
+model MarketingChannelHealthSnapshot {
+  id         String                      @id @default(uuid())
+  channel    MarketingChannel
+  status     MarketingChannelHealthStatus
+  latencyMs  Int
+  uptimePct  Decimal                     @db.Decimal(5, 2)
+  capturedAt DateTime                    @default(now())
+
+  @@index([channel, capturedAt])
+}
+
+model MarketingAnalyticsSnapshot {
+  id                 String            @id @default(uuid())
+  snapshotKey        String            @unique
+  campaignId         String?
+  scope              String
+  label              String
+  periodStart        DateTime
+  periodEnd          DateTime
+  leads              Int
+  quotes             Int
+  totalReach         Int
+  spendZar           Decimal           @db.Decimal(12, 2)
+  roas               Decimal           @db.Decimal(8, 2)
+  publishedPosts     Int               @default(0)
+  conversionRatePct  Decimal           @db.Decimal(8, 2)
+  channelAttribution Json?
+  trend              Json?
+  topAsset           Json?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  campaign           MarketingCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([scope, periodEnd])
+  @@index([campaignId, periodEnd])
+}
+
+model MarketingCommunityPost {
+  id               String                     @id @default(uuid())
+  postKey          String                     @unique
+  campaignId       String?
+  creatorName      String
+  creatorAvatarUrl String
+  mediaUrl         String
+  mediaType        MarketingCommunityMediaType
+  caption          String
+  internalLikes    Int                        @default(0)
+  internalLikeActors Json?
+  internalComments Json
+  channelStats     Json
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+  campaign         MarketingCampaign?         @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([campaignId, createdAt])
+}
+
+model MarketingContentPost {
+  id                     String   @id @default(uuid())
+  contentKey             String   @unique
+  targetSurface          String
+  contentType            String
+  status                 String   @default("DRAFT")
+  title                  String
+  excerpt                String
+  coverImageUrl          String
+  readTime               String
+  category               String
+  authorName             String
+  authorRole             String?
+  body                   Json
+  takeaways              Json
+  tags                   String[] @default([])
+  relatedCategoryKeys    String[] @default([])
+  relatedProductKeywords String[] @default([])
+  sourceAssetId          String?
+  campaignId             String?
+  generatedFromTopic     String?
+  aiDirection            String?
+  publishedAt            DateTime?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([targetSurface, status, publishedAt])
+  @@index([sourceAssetId])
+  @@index([campaignId])
+}
+
+model CreativeDocument {
+  id               String                 @id @default(uuid())
+  documentKey      String                 @unique
+  name             String
+  status           CreativeDocumentStatus @default(DRAFT)
+  workspaceMode    CreativeWorkspaceMode
+  canvasPreset     CreativeExportPreset   @default(SQUARE_POST)
+  canvasWidth      Int                    @default(1080)
+  canvasHeight     Int                    @default(1080)
+  previewImageUrl  String?
+  metadata         Json?
+  productId        String?
+  campaignId       String?
+  templateId       String?
+  currentVersionId String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  product          Product?               @relation(fields: [productId], references: [id], onDelete: SetNull)
+  campaign         MarketingCampaign?     @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  template         MarketingTemplate?     @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  currentVersion   CreativeDocumentVersion? @relation("CurrentCreativeDocumentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  versions         CreativeDocumentVersion[] @relation("CreativeDocumentVersions")
+  layers           CreativeDocumentLayer[]
+  links            CreativeDocumentLink[]
+  exportJobs       CreativeExportJob[]
+  aiJobs           CreativeAiJob[]
+  masks            CreativeMask[]
+
+  @@index([status, updatedAt])
+  @@index([productId])
+  @@index([campaignId])
+  @@index([templateId])
+}
+
+model CreativeDocumentVersion {
+  id            String           @id @default(uuid())
+  versionKey    String           @unique
+  documentId    String
+  versionNumber Int
+  snapshot      Json
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  document      CreativeDocument @relation("CreativeDocumentVersions", fields: [documentId], references: [id], onDelete: Cascade)
+  currentFor    CreativeDocument[] @relation("CurrentCreativeDocumentVersion")
+
+  @@unique([documentId, versionNumber])
+  @@index([documentId, createdAt])
+}
+
+model CreativeDocumentLayer {
+  id           String            @id @default(uuid())
+  layerKey     String            @unique
+  documentId    String
+  layerType    CreativeLayerType
+  name         String
+  sourceAssetId String?
+  visible      Boolean           @default(true)
+  locked       Boolean           @default(false)
+  zIndex       Int               @default(0)
+  transformJson Json
+  cropJson     Json?
+  styleJson    Json?
+  contentJson  Json?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  document     CreativeDocument  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  sourceAsset  ProductAsset?     @relation(fields: [sourceAssetId], references: [id], onDelete: SetNull)
+
+  @@index([documentId, zIndex])
+  @@index([sourceAssetId])
+}
+
+model CreativeDocumentLink {
+  id             String                  @id @default(uuid())
+  documentId      String
+  linkType       CreativeDocumentLinkType
+  productId      String?
+  campaignId     String?
+  templateId     String?
+  assetId        String?
+  publishTarget  String?
+  createdAt      DateTime                @default(now())
+  document       CreativeDocument        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  product        Product?                @relation(fields: [productId], references: [id], onDelete: Cascade)
+  campaign       MarketingCampaign?      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  template       MarketingTemplate?      @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  asset          ProductAsset?           @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([documentId, linkType])
+  @@index([productId])
+  @@index([campaignId])
+}
+
+model CreativeExportJob {
+  id               String                 @id @default(uuid())
+  jobKey           String                 @unique
+  documentId        String
+  preset           CreativeExportPreset
+  width            Int
+  height           Int
+  status           CreativeExportJobStatus @default(DRAFT)
+  outputAssetId    String?
+  publishChannel   MarketingChannel?
+  publishTarget    String?
+  metadata         Json?
+  errorMessage     String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  document         CreativeDocument       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  outputAsset      ProductAsset?          @relation(fields: [outputAssetId], references: [id], onDelete: SetNull)
+
+  @@index([documentId, createdAt])
+  @@index([status, createdAt])
+}
+
+model CreativeAiJob {
+  id            String             @id @default(uuid())
+  jobKey        String             @unique
+  documentId    String?
+  assetId       String?
+  jobType       CreativeAiJobType
+  status        CreativeAiJobStatus @default(DRAFT)
+  provider      String
+  inputJson     Json?
+  resultJson    Json?
+  outputAssetId String?
+  errorMessage  String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  document      CreativeDocument?  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  asset         ProductAsset?      @relation("CreativeAiSourceAsset", fields: [assetId], references: [id], onDelete: SetNull)
+  outputAsset   ProductAsset?      @relation("CreativeAiOutputAsset", fields: [outputAssetId], references: [id], onDelete: SetNull)
+  masks         CreativeMask[]
+
+  @@index([documentId, createdAt])
+  @@index([assetId])
+  @@index([status, createdAt])
+}
+
+model CreativeMask {
+  id           String            @id @default(uuid())
+  documentId    String
+  aiJobId      String?
+  label        String
+  maskMode     String
+  width        Int
+  height       Int
+  maskImageUrl String?
+  vectorData   Json?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  document     CreativeDocument  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  aiJob        CreativeAiJob?    @relation(fields: [aiJobId], references: [id], onDelete: SetNull)
+
+  @@index([documentId, createdAt])
 }
 
 model ProductHistoryEvent {
@@ -533,6 +1720,7 @@ model LogisticsQuoteSnapshot {
   rateCardId         String?
   destinationLabel   String
   distanceKm         Decimal             @db.Decimal(10, 2)
+  distanceSource     String              @default("fallback")
   costPerKm          Decimal             @db.Decimal(10, 2)
   sellPricePerKm     Decimal             @db.Decimal(10, 2)
   fixedFee           Decimal             @db.Decimal(10, 2)

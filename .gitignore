@@ -9,3 +9,4 @@ tsconfig.tsbuildinfo
 !.env.example
 src/data/
 generated/
+storage/uploads/

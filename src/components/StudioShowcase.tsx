@@ -10,8 +10,9 @@ import {
 } from 'lucide-react';
 import { NavigationBar } from './NavigationBar';
 import { CustomizeStudio } from './CustomizeStudio';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import { useVisualLab } from './VisualLabContext';
+import { customerAccountCategoryOptions, hasMemberCustomerAccess } from '../customers/accountCategories';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type StudioMode = 'creative' | 'architect' | 'calculator';
@@ -814,6 +815,90 @@ function PlanAnalyzer({ accent }: { accent: string }) {
          profs={ARCHITECTS} 
          accent={accent} 
        />
+       <section className="relative mt-20 overflow-hidden rounded-[44px] border border-white/10 bg-[#080808]/90 p-8 shadow-[0_40px_130px_rgba(0,0,0,0.75)] md:p-12">
+         <div className="pointer-events-none absolute right-0 top-0 h-96 w-96 rounded-full bg-blue-500/10 blur-[150px]" />
+         <div className="relative z-10 grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+           <div>
+             <div className="mb-5 flex items-center gap-4">
+               <div className="h-px w-12 bg-white/20" />
+               <span className="text-[10px] font-black uppercase tracking-[0.45em] text-blue-400">Member Tender Sourcing</span>
+             </div>
+             <h3 className="font-serif text-4xl leading-tight text-white md:text-5xl">We source opportunities for members</h3>
+             <p className="mt-5 max-w-2xl text-xs font-bold uppercase leading-[2.2] tracking-[0.28em] text-white/35">
+               Tender opportunities are not displayed publicly in Studio. BTS reviews relevant public and private scopes, then routes matched opportunities, BOQ packs, drawing-review requests, and quote prompts directly to qualified member accounts.
+             </p>
+           </div>
+           <div className="grid gap-3 rounded-[30px] border border-white/10 bg-black/40 p-4">
+             {[
+               ['Curated sourcing', 'BTS filters tender feeds before sending opportunities to members.'],
+               ['Matched by role', 'Architects, designers, QS members, and contractors receive scopes relevant to their work.'],
+               ['Quote-ready handoff', 'When a fit is found, members receive the context needed to review drawings, BOQs, or project gaps.'],
+             ].map(([title, description]) => (
+               <div key={title} className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4">
+                 <div className="text-xs font-black uppercase tracking-[0.24em] text-white">{title}</div>
+                 <div className="mt-2 text-[10px] leading-relaxed text-white/35">{description}</div>
+               </div>
+             ))}
+           </div>
+         </div>
+       </section>
+    </div>
+  );
+}
+
+function MemberStudioAccessPanel({
+  accent,
+  activeMode,
+  onSignIn,
+}: {
+  accent: string;
+  activeMode: StudioMode;
+  onSignIn: () => void;
+}) {
+  const allowedCategories = customerAccountCategoryOptions.filter((category) => category.memberAccess);
+  const modeLabel = activeMode === 'creative'
+    ? 'design studio'
+    : activeMode === 'architect'
+      ? 'plan analysis and tender tools'
+      : 'QS calculator';
+
+  return (
+    <div className="mx-auto max-w-5xl py-24">
+      <div className="relative overflow-hidden rounded-[48px] border border-white/10 bg-[#080808]/95 p-8 shadow-[0_40px_130px_rgba(0,0,0,0.75)] md:p-12">
+        <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full blur-[130px]" style={{ backgroundColor: `${accent}22` }} />
+        <div className="relative z-10 grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+          <div>
+            <div className="mb-5 flex items-center gap-4">
+              <div className="h-px w-12 bg-white/20" />
+              <span className="text-[10px] font-black uppercase tracking-[0.45em]" style={{ color: accent }}>Member Access</span>
+            </div>
+            <h3 className="font-serif text-4xl leading-tight text-white md:text-6xl">Member category required</h3>
+            <p className="mt-6 max-w-2xl text-xs font-bold uppercase leading-[2.2] tracking-[0.28em] text-white/35">
+              The {modeLabel} is available to member accounts: contractors, interior designers, architects, and quantity surveyors. Retail customers and guests can view posts and browse the platform, but image generation, optical submissions, tender packs, and studio tools stay member-only.
+            </p>
+            <button
+              type="button"
+              onClick={onSignIn}
+              className="mt-8 inline-flex items-center gap-3 rounded-full px-7 py-4 text-[10px] font-black uppercase tracking-[0.35em] text-black transition-all hover:scale-[1.02]"
+              style={{ backgroundColor: accent }}
+            >
+              Sign In / Become A Member
+              <ArrowRight size={14} />
+            </button>
+          </div>
+          <div className="rounded-[34px] border border-white/10 bg-black/40 p-5">
+            <div className="mb-4 text-[10px] font-black uppercase tracking-[0.32em] text-white/35">Member Categories</div>
+            <div className="grid gap-3">
+              {allowedCategories.map((category) => (
+                <div key={category.id} className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4">
+                  <div className="text-xs font-black uppercase tracking-[0.24em] text-white">{category.label}</div>
+                  <div className="mt-2 text-[10px] leading-relaxed text-white/35">{category.description}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -822,11 +907,18 @@ function PlanAnalyzer({ accent }: { accent: string }) {
 export function StudioShowcase() {
   const [activeIdx, setActiveIdx] = useState<number>(0);
   const vol = VOLUMES[activeIdx];
-  const navigate = useNavigate();
   const location = useLocation();
   const { designId } = useParams();
+  const {
+    isLoggedIn,
+    userRole,
+    customerAccountCategory,
+    setIsLoginPageOpen,
+    setPostLoginRedirect,
+  } = useVisualLab();
   const query = new URLSearchParams(location.search);
   const modeParam = query.get('mode') as StudioMode;
+  const hasToolAccess = isLoggedIn && userRole === 'customer' && hasMemberCustomerAccess(customerAccountCategory);
 
   useEffect(() => {
     if (designId) {
@@ -839,6 +931,11 @@ export function StudioShowcase() {
 
   const nav = (dir: 1 | -1) => {
     setActiveIdx(prev => Math.max(0, Math.min(2, prev + dir)));
+  };
+
+  const openMemberAccessLogin = () => {
+    setPostLoginRedirect(`/customize?mode=${vol.mode}`);
+    setIsLoginPageOpen(true);
   };
 
   return (
@@ -947,9 +1044,15 @@ export function StudioShowcase() {
                    viewport={{ once: true }}
                    transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
                 >
-                   {activeIdx === 0 && <CustomizeStudio hideNav />}
-                   {activeIdx === 1 && <PlanAnalyzer accent="#60a5fa" />}
-                   {activeIdx === 2 && <QSCalculator accent="#fb923c" />}
+                   {hasToolAccess ? (
+                     <>
+                       {activeIdx === 0 && <CustomizeStudio hideNav />}
+                       {activeIdx === 1 && <PlanAnalyzer accent="#60a5fa" />}
+                       {activeIdx === 2 && <QSCalculator accent="#fb923c" />}
+                     </>
+                   ) : (
+                     <MemberStudioAccessPanel accent={vol.accent} activeMode={vol.mode} onSignIn={openMemberAccessLogin} />
+                   )}
                 </motion.div>
              </AnimatePresence>
           </div>

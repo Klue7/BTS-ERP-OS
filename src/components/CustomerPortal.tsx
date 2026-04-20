@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { productData } from '../catalog/productData';
 import { motion, AnimatePresence } from 'motion/react';
 import { Package, Clock, Settings, LogOut, ChevronRight, CreditCard, ArrowLeft, Sparkles, LayoutGrid, FileText, Archive, ExternalLink, Copy, Eye, MoreVertical, Trash2, Building2, X, Upload, Plus, Share2, Home, CheckCircle2, AlertCircle, ShieldCheck, Download, Globe, Lock, MapPin, Layers, User, ShoppingBag, Palette, Coins, Ticket, Image as ImageIcon } from 'lucide-react';
@@ -22,9 +22,29 @@ const WatermarkOverlay = () => (
 );
 import { useVisualLab } from './VisualLabContext';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { fetchInventoryCustomerDocuments } from '../inventory/api';
+import type { BusinessDocumentSummary, CustomerDocumentHistory } from '../inventory/contracts';
+import { usePdfPreview } from './PdfPreviewContext';
 
 export function CustomerPortal() {
-  const { setIsLoggedIn, setUserRole, designs, projects, deleteDesign, addDesign, updateDesign, addProject, deleteProject, updateProject, orders, quotes, btsCoins, setBtsCoins } = useVisualLab();
+  const {
+    setIsLoggedIn,
+    setUserRole,
+    designs,
+    projects,
+    deleteDesign,
+    addDesign,
+    updateDesign,
+    addProject,
+    deleteProject,
+    updateProject,
+    orders,
+    quotes,
+    btsCoins,
+    setBtsCoins,
+    currentCustomerProfileId,
+    setCurrentCustomerProfileId,
+  } = useVisualLab();
 
   const stats = [
     { label: 'Total Orders', value: orders.length.toString(), icon: Package },
@@ -47,7 +67,77 @@ export function CustomerPortal() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [documentHistory, setDocumentHistory] = useState<CustomerDocumentHistory | null>(null);
+  const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
+  const [documentSearch, setDocumentSearch] = useState('');
   const navigate = useNavigate();
+  const { openPdfPreview } = usePdfPreview();
+
+  const openCustomerDocumentPdf = (document: BusinessDocumentSummary) => {
+    openPdfPreview({
+      url: document.pdfUrl,
+      title: document.key,
+      subtitle: `${document.type} / ${document.status}`,
+      fileName: `${document.key}.pdf`,
+    });
+  };
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    if (!currentCustomerProfileId) {
+      setDocumentHistory(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const load = async () => {
+      setIsLoadingDocuments(true);
+      try {
+        const payload = await fetchInventoryCustomerDocuments(currentCustomerProfileId);
+        if (!cancelled) {
+          setDocumentHistory(payload);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setDocumentHistory(null);
+          toast.error(error instanceof Error ? error.message : 'Failed to load customer document history.');
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingDocuments(false);
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentCustomerProfileId]);
+
+  const filteredDocuments = useMemo(() => {
+    const allDocuments = documentHistory?.documents ?? [];
+    const query = documentSearch.trim().toLowerCase();
+
+    if (!query) {
+      return allDocuments;
+    }
+
+    return allDocuments.filter((document) =>
+      document.key.toLowerCase().includes(query) ||
+      document.title.toLowerCase().includes(query) ||
+      document.type.toLowerCase().includes(query) ||
+      (document.productName ?? '').toLowerCase().includes(query),
+    );
+  }, [documentHistory?.documents, documentSearch]);
+
+  const orderDocuments = filteredDocuments.filter((document) =>
+    document.type === 'Customer Order' || document.type === 'Customer Invoice',
+  );
+  const quoteDocuments = filteredDocuments.filter((document) => document.type === 'Customer Quote');
 
   // Project Upload Form State
   const [newProject, setNewProject] = useState({
@@ -131,6 +221,7 @@ export function CustomerPortal() {
   const handleLogout = () => {
     setIsLoggedIn(false);
     setUserRole(null);
+    setCurrentCustomerProfileId(null);
     navigate('/');
   };
 
@@ -815,12 +906,69 @@ export function CustomerPortal() {
               <div className="space-y-8">
                 {/* Active Orders */}
                 <section className="space-y-6">
-                  <div className="flex items-center gap-4">
-                    <h3 className="text-[10px] font-mono uppercase tracking-[0.4em] text-[#22c55e]">Confirmed Orders</h3>
-                    <div className="flex-1 h-px bg-gradient-to-r from-[#22c55e]/20 to-transparent" />
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div className="flex items-center gap-4">
+                      <h3 className="text-[10px] font-mono uppercase tracking-[0.4em] text-[#22c55e]">Confirmed Orders</h3>
+                      <div className="flex-1 h-px bg-gradient-to-r from-[#22c55e]/20 to-transparent" />
+                    </div>
+                    <input
+                      value={documentSearch}
+                      onChange={(event) => setDocumentSearch(event.target.value)}
+                      placeholder="Search transaction history"
+                      className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-[10px] uppercase tracking-widest text-white/70 outline-none transition-colors focus:border-[#22c55e]/40"
+                    />
                   </div>
                   <div className="grid grid-cols-1 gap-4">
-                    {orders.map((order) => (
+                    {documentHistory ? (
+                      <>
+                        {isLoadingDocuments ? (
+                          <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-[10px] uppercase tracking-widest text-white/35">
+                            Loading transaction history...
+                          </div>
+                        ) : orderDocuments.length > 0 ? (
+                          orderDocuments.map((document) => (
+                            <div key={document.id} className="bg-white/5 border border-white/10 rounded-2xl p-8 hover:border-[#22c55e]/30 transition-all group">
+                              <div className="flex flex-col md:flex-row justify-between gap-8">
+                                <div className="flex gap-6">
+                                  <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center text-white/20">
+                                    <Package size={32} />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <h4 className="text-lg font-bold text-white uppercase tracking-tight">{document.key}</h4>
+                                    <p className="text-[10px] text-white/30 uppercase tracking-widest">
+                                      {new Date(document.issuedAt).toLocaleDateString('en-ZA')} • {document.type}
+                                    </p>
+                                    <div className="flex items-center gap-3 mt-2">
+                                      <span className="px-3 py-1 bg-[#22c55e]/10 text-[#22c55e] text-[8px] font-bold uppercase tracking-widest rounded-full border border-[#22c55e]/20">
+                                        {document.status}
+                                      </span>
+                                      {document.productName ? (
+                                        <span className="text-[9px] font-mono text-white/20 uppercase tracking-widest">
+                                          {document.productName}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex flex-col md:items-end justify-center gap-4">
+                                  <div className="text-2xl font-bold text-white">R {document.totalAmount.toLocaleString()}</div>
+                                  <button
+                                    onClick={() => openCustomerDocumentPdf(document)}
+                                    className="px-6 py-2 bg-white/5 border border-white/10 rounded-full text-[9px] font-bold tracking-widest uppercase text-white/60 hover:text-white hover:bg-white/10 transition-all"
+                                  >
+                                    Open PDF
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-[10px] uppercase tracking-widest text-white/35">
+                            No orders or invoices found for this customer yet.
+                          </div>
+                        )}
+                      </>
+                    ) : orders.map((order) => (
                       <div key={order.id} className="bg-white/5 border border-white/10 rounded-2xl p-8 hover:border-[#22c55e]/30 transition-all group">
                         <div className="flex flex-col md:flex-row justify-between gap-8">
                           <div className="flex gap-6">
@@ -857,7 +1005,53 @@ export function CustomerPortal() {
                     <div className="flex-1 h-px bg-gradient-to-r from-white/5 to-transparent" />
                   </div>
                   <div className="grid grid-cols-1 gap-4">
-                    {quotes.map((quote) => (
+                    {documentHistory ? (
+                      <>
+                        {isLoadingDocuments ? (
+                          <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-[10px] uppercase tracking-widest text-white/35">
+                            Loading quote history...
+                          </div>
+                        ) : quoteDocuments.length > 0 ? (
+                          quoteDocuments.map((quote) => (
+                            <div key={quote.id} className="bg-white/5 border border-white/5 rounded-2xl p-8 hover:border-white/20 transition-all group">
+                              <div className="flex flex-col md:flex-row justify-between gap-8">
+                                <div className="flex gap-6">
+                                  <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center text-white/10">
+                                    <FileText size={32} />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <h4 className="text-lg font-bold text-white/60 uppercase tracking-tight">{quote.key}</h4>
+                                    <p className="text-[10px] text-white/20 uppercase tracking-widest">
+                                      Issued on {new Date(quote.issuedAt).toLocaleDateString('en-ZA')} • {quote.type}
+                                    </p>
+                                    <div className="flex items-center gap-3 mt-2">
+                                      <span className={`px-3 py-1 text-[8px] font-bold uppercase tracking-widest rounded-full border ${
+                                        quote.status === 'Expired' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                                      }`}>
+                                        {quote.status}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex flex-col md:items-end justify-center gap-4">
+                                  <div className="text-2xl font-bold text-white/40">R {quote.totalAmount.toLocaleString()}</div>
+                                  <button
+                                    onClick={() => openCustomerDocumentPdf(quote)}
+                                    className="px-6 py-2 bg-[#22c55e] text-black rounded-full text-[9px] font-bold tracking-widest uppercase hover:opacity-90 transition-all"
+                                  >
+                                    Open PDF
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-[10px] uppercase tracking-widest text-white/35">
+                            No quotes found for this customer yet.
+                          </div>
+                        )}
+                      </>
+                    ) : quotes.map((quote) => (
                       <div key={quote.id} className="bg-white/5 border border-white/5 rounded-2xl p-8 hover:border-white/20 transition-all group">
                         <div className="flex flex-col md:flex-row justify-between gap-8">
                           <div className="flex gap-6">

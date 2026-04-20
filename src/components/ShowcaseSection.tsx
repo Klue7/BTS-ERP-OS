@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useVisualLab } from './VisualLabContext';
-import { productData } from '../catalog/productData';
+import { useStorefrontCategoryData } from '../catalog/storefrontData';
 import { ChevronLeft, ChevronRight, ZoomIn, Tag, Layers, Box } from 'lucide-react';
 
 // Supplementary lifestyle / context images per slot
@@ -15,9 +15,10 @@ const CONTEXT_IMAGES = [
 
 export function ShowcaseSection() {
   const { selectedCatalogItem, activeCategory } = useVisualLab();
+  const { categoryData } = useStorefrontCategoryData(activeCategory);
 
   // Build the active product: context-selected OR default to first (Serengeti)
-  const catalogItems = (productData[activeCategory]?.catalog ?? []) as any[];
+  const catalogItems = (categoryData?.catalog ?? []) as any[];
   const product = selectedCatalogItem ?? catalogItems[0] ?? null;
 
   // Build gallery: product's own images + fill with context images up to 5 slots
@@ -61,7 +62,7 @@ export function ShowcaseSection() {
             <h2 className="text-4xl md:text-6xl font-serif font-light text-white leading-none tracking-tighter">
               {product?.name ?? 'Serengeti'}
             </h2>
-            <p className="text-white/30 text-xs mt-2 font-mono uppercase tracking-widest">{product?.mood ?? 'Rich Aesthetic'} · {product?.price ?? 'R 289.00'}</p>
+            <p className="text-white/30 text-xs mt-2 font-mono uppercase tracking-widest">{product?.mood ?? product?.subCategory ?? 'Rich Aesthetic'} · {product?.price ?? 'R 289.00'}</p>
           </div>
           {/* Spec pills */}
           <div className="hidden md:flex items-center gap-3">

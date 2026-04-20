@@ -1,22 +1,38 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { invalidateStorefrontCatalogData } from '../catalog/storefrontData';
 import {
   applyPriceListImport,
+  createInventorySupplier as createInventorySupplierRequest,
+  createInventorySupplierContact as createInventorySupplierContactRequest,
+  createInventorySupplierDocument as createInventorySupplierDocumentRequest,
   createInventoryProduct as createInventoryProductRequest,
   createPriceListImport,
+  deleteInventorySupplier as deleteInventorySupplierRequest,
+  fetchInventorySupplier,
   fetchInventoryDashboard,
   fetchInventoryProductDetails,
   fetchInventoryProducts,
   fetchInventorySuppliers,
+  linkInventorySupplierProducts as linkInventorySupplierProductsRequest,
+  publishInventoryProduct as publishInventoryProductRequest,
+  updateInventorySupplier as updateInventorySupplierRequest,
+  updateInventoryProduct as updateInventoryProductRequest,
 } from './api';
 import type {
+  CreateSupplierContactInput,
+  CreateSupplierDocumentInput,
   CreateInventoryProductInput,
   CreatePriceListImportInput,
+  CreateSupplierInput,
   InventoryAssetRole,
   InventoryDashboardSnapshot,
   InventoryProductDetail,
   InventoryProductSummary,
+  LinkSupplierProductsInput,
   PriceListImportResult,
   SupplierSummary,
+  UpdateSupplierInput,
+  UpdateInventoryProductInput,
 } from './contracts';
 
 export interface InventoryUiProduct {
@@ -215,6 +231,16 @@ function mapAsset(detail: InventoryProductDetail, asset: InventoryProductDetail[
   };
 }
 
+function sortSuppliersByName(items: SupplierSummary[]) {
+  return [...items].sort((left, right) => left.name.localeCompare(right.name, 'en-ZA'));
+}
+
+function upsertSupplier(items: SupplierSummary[], supplier: SupplierSummary) {
+  const next = items.filter((item) => item.id !== supplier.id);
+  next.push(supplier);
+  return sortSuppliersByName(next);
+}
+
 export function useInventoryPortalData() {
   const [dashboard, setDashboard] = useState<InventoryDashboardSnapshot | null>(null);
   const [products, setProducts] = useState<InventoryUiProduct[]>([]);
@@ -224,6 +250,8 @@ export function useInventoryPortalData() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const refreshTimerRef = useRef<number | null>(null);
+  const reconnectTimerRef = useRef<number | null>(null);
 
   const refresh = useCallback(async () => {
     setIsLoading(true);
@@ -241,7 +269,7 @@ export function useInventoryPortalData() {
       setProductSummaries(summaryResult);
       setRawProducts(detailResult);
       setProducts(detailResult.map((detail) => mapProduct(detail)));
-      setSuppliers(supplierResult);
+      setSuppliers(sortSuppliersByName(supplierResult));
     } catch (refreshError) {
       setError(refreshError instanceof Error ? refreshError.message : 'Failed to load inventory data.');
     } finally {
@@ -253,6 +281,79 @@ export function useInventoryPortalData() {
     void refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof EventSource === 'undefined') {
+      return undefined;
+    }
+
+    const scheduleRefresh = () => {
+      if (refreshTimerRef.current !== null) {
+        window.clearTimeout(refreshTimerRef.current);
+      }
+
+      refreshTimerRef.current = window.setTimeout(() => {
+        refreshTimerRef.current = null;
+        void refresh();
+      }, 180);
+    };
+
+    let eventSource: EventSource | null = null;
+    let cancelled = false;
+
+    const connect = () => {
+      if (cancelled) {
+        return;
+      }
+
+      eventSource = new EventSource('/api/inventory/events');
+      eventSource.onmessage = () => {
+        scheduleRefresh();
+      };
+      eventSource.onerror = () => {
+        eventSource?.close();
+        eventSource = null;
+
+        if (cancelled) {
+          return;
+        }
+
+        if (reconnectTimerRef.current !== null) {
+          window.clearTimeout(reconnectTimerRef.current);
+        }
+
+        reconnectTimerRef.current = window.setTimeout(() => {
+          reconnectTimerRef.current = null;
+          void refresh();
+          connect();
+        }, 1200);
+      };
+    };
+
+    connect();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        scheduleRefresh();
+      }
+    };
+
+    window.addEventListener('focus', scheduleRefresh);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      if (refreshTimerRef.current !== null) {
+        window.clearTimeout(refreshTimerRef.current);
+      }
+      if (reconnectTimerRef.current !== null) {
+        window.clearTimeout(reconnectTimerRef.current);
+      }
+      eventSource?.close();
+      window.removeEventListener('focus', scheduleRefresh);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [refresh]);
+
   const createProduct = useCallback(
     async (input: CreateInventoryProductInput) => {
       setIsSaving(true);
@@ -261,6 +362,7 @@ export function useInventoryPortalData() {
       try {
         await createInventoryProductRequest(input);
         await refresh();
+        invalidateStorefrontCatalogData();
       } catch (createError) {
         setError(createError instanceof Error ? createError.message : 'Failed to create product.');
         throw createError;
@@ -280,6 +382,7 @@ export function useInventoryPortalData() {
         const staged = await createPriceListImport(input);
         const applied = await applyPriceListImport(staged.batchId);
         await refresh();
+        invalidateStorefrontCatalogData();
         return applied;
       } catch (importError) {
         setError(importError instanceof Error ? importError.message : 'Failed to import price list.');
@@ -291,9 +394,142 @@ export function useInventoryPortalData() {
     [refresh],
   );
 
+  const createSupplier = useCallback(
+    async (input: CreateSupplierInput) => {
+      setIsSaving(true);
+      setError(null);
+
+      try {
+        const supplier = await createInventorySupplierRequest(input);
+        setSuppliers((current) => upsertSupplier(current, supplier));
+        await refresh();
+        return supplier;
+      } catch (saveError) {
+        setError(saveError instanceof Error ? saveError.message : 'Failed to create supplier.');
+        throw saveError;
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [refresh],
+  );
+
+  const updateSupplier = useCallback(
+    async (id: string, input: UpdateSupplierInput) => {
+      setIsSaving(true);
+      setError(null);
+
+      try {
+        const supplier = await updateInventorySupplierRequest(id, input);
+        setSuppliers((current) => upsertSupplier(current, supplier));
+        await refresh();
+        return supplier;
+      } catch (saveError) {
+        setError(saveError instanceof Error ? saveError.message : 'Failed to update supplier.');
+        throw saveError;
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [refresh],
+  );
+
+  const deleteSupplier = useCallback(
+    async (id: string) => {
+      setIsSaving(true);
+      setError(null);
+
+      try {
+        const result = await deleteInventorySupplierRequest(id);
+        setSuppliers((current) => {
+          if (result.disposition === 'archived' && result.supplier) {
+            return upsertSupplier(current, result.supplier);
+          }
+
+          return current.filter((supplier) => supplier.id !== id);
+        });
+        await refresh();
+        return result;
+      } catch (saveError) {
+        setError(saveError instanceof Error ? saveError.message : 'Failed to delete supplier.');
+        throw saveError;
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [refresh],
+  );
+
+  const addSupplierContact = useCallback(
+    async (id: string, input: CreateSupplierContactInput) => {
+      setIsSaving(true);
+      setError(null);
+
+      try {
+        const supplier = await createInventorySupplierContactRequest(id, input);
+        setSuppliers((current) => upsertSupplier(current, supplier));
+        await refresh();
+        return supplier;
+      } catch (saveError) {
+        setError(saveError instanceof Error ? saveError.message : 'Failed to add supplier contact.');
+        throw saveError;
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [refresh],
+  );
+
+  const addSupplierDocument = useCallback(
+    async (id: string, input: CreateSupplierDocumentInput) => {
+      setIsSaving(true);
+      setError(null);
+
+      try {
+        const supplier = await createInventorySupplierDocumentRequest(id, input);
+        setSuppliers((current) => upsertSupplier(current, supplier));
+        await refresh();
+        return supplier;
+      } catch (saveError) {
+        setError(saveError instanceof Error ? saveError.message : 'Failed to add supplier document.');
+        throw saveError;
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [refresh],
+  );
+
+  const linkSupplierProducts = useCallback(
+    async (id: string, input: LinkSupplierProductsInput) => {
+      setIsSaving(true);
+      setError(null);
+
+      try {
+        const supplier = await linkInventorySupplierProductsRequest(id, input);
+        setSuppliers((current) => upsertSupplier(current, supplier));
+        await refresh();
+        return supplier;
+      } catch (saveError) {
+        setError(saveError instanceof Error ? saveError.message : 'Failed to link supplier products.');
+        throw saveError;
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [refresh],
+  );
+
+  const fetchSupplier = useCallback((id: string) => fetchInventorySupplier(id), []);
+
   const productsById = useMemo(
     () => Object.fromEntries(products.map((product) => [product.id, product])),
     [products],
+  );
+
+  const rawProductsById = useMemo(
+    () => Object.fromEntries(rawProducts.map((product) => [product.id, product])),
+    [rawProducts],
   );
 
   const assetsByProductId = useMemo(
@@ -307,10 +543,49 @@ export function useInventoryPortalData() {
     [rawProducts],
   );
 
+  const updateProduct = useCallback(
+    async (id: string, input: UpdateInventoryProductInput) => {
+      setIsSaving(true);
+      setError(null);
+
+      try {
+        await updateInventoryProductRequest(id, input);
+        await refresh();
+        invalidateStorefrontCatalogData();
+      } catch (updateError) {
+        setError(updateError instanceof Error ? updateError.message : 'Failed to update product.');
+        throw updateError;
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [refresh],
+  );
+
+  const publishProduct = useCallback(
+    async (id: string) => {
+      setIsSaving(true);
+      setError(null);
+
+      try {
+        await publishInventoryProductRequest(id);
+        await refresh();
+        invalidateStorefrontCatalogData();
+      } catch (publishError) {
+        setError(publishError instanceof Error ? publishError.message : 'Failed to publish product.');
+        throw publishError;
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [refresh],
+  );
+
   return {
     dashboard,
     products,
     rawProducts,
+    rawProductsById,
     productSummaries,
     productsById,
     assetsByProductId,
@@ -320,6 +595,15 @@ export function useInventoryPortalData() {
     error,
     refresh,
     createProduct,
+    updateProduct,
+    publishProduct,
     importPriceList,
+    createSupplier,
+    updateSupplier,
+    deleteSupplier,
+    addSupplierContact,
+    addSupplierDocument,
+    linkSupplierProducts,
+    fetchSupplier,
   };
 }

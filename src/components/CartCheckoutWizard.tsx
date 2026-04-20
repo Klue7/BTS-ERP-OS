@@ -6,13 +6,15 @@ import {
 } from 'lucide-react';
 import { useVisualLab, useTheme } from './VisualLabContext';
 import { QuoteDocument } from './QuoteDocument';
-import { productData } from '../catalog/productData';
-
-const FACTORY_LOCATIONS: Record<string, string> = {
-  'cladding-tiles': 'Pretoria East Factory',
-  'paving': 'Pretoria East Factory',
-  'bricks': 'Midrand Depot',
-};
+import { useStorefrontCategoryData } from '../catalog/storefrontData';
+import {
+  calculateQuoteBreakdown,
+  convertQuantity,
+  formatZar,
+  getPricingUnitLabel,
+  getRecommendedQuoteUnit,
+  type ProductQuoteModel,
+} from '../pricing/quoteEngine';
 
 const slideVariants = {
   enter: (dir: number) => ({ x: dir > 0 ? 60 : -60, opacity: 0 }),
@@ -20,6 +22,29 @@ const slideVariants = {
   exit: (dir: number) => ({ x: dir < 0 ? 60 : -60, opacity: 0 })
 };
 const slideTransition: any = { type: 'spring', damping: 28, stiffness: 220 };
+
+function buildCartFallbackProduct(category: 'cladding-tiles' | 'bricks' | 'paving' | 'breeze-blocks', name: string, pricePerUnit: number): ProductQuoteModel {
+  const isBrick = category === 'bricks';
+  const isCladding = category === 'cladding-tiles';
+
+  return {
+    name,
+    categoryKey: category,
+    pricingUnit: isBrick ? 'piece' : isCladding ? 'm2' : 'piece',
+    sellPriceZar: pricePerUnit,
+    unitsPerM2: isBrick ? 55 : isCladding ? 50 : 1,
+    weightPerPieceKg: 0,
+    piecesPerPallet: isBrick ? 500 : isCladding ? 2000 : 1,
+    boxesPerPallet: isCladding ? 40 : 0,
+    palletsPerTruck: 24,
+    logistics: {
+      costPricePerKm: 25,
+      sellPricePerKm: 35,
+      fixedFee: 0,
+      minimumCharge: 0,
+    },
+  };
+}
 
 export function CartCheckoutWizard() {
   const {
@@ -39,6 +64,8 @@ export function CartCheckoutWizard() {
   const [address, setAddress] = useState({ street: '', city: '', province: '', code: '' });
   const [contact, setContact] = useState({ name: '', email: '', phone: '', company: '' });
   const [submitted, setSubmitted] = useState(false);
+  const firstCategory = cart[0]?.category ?? 'cladding-tiles';
+  const { categoryData } = useStorefrontCategoryData(firstCategory);
 
   const go = (target: number) => {
     setDir(target > step ? 1 : -1);
@@ -60,32 +87,57 @@ export function CartCheckoutWizard() {
   const maxStep = STEPS.length;
 
   const totalPallets = useMemo(() => {
-    let p = 0;
-    cart.forEach(c => {
-      p += c.category === 'bricks' ? c.uomQty : (c.uomQty / 40);
-    });
-    return p;
-  }, [cart]);
+    return cart.reduce((total, item) => {
+      const product = item.quoteModel ?? buildCartFallbackProduct(item.category, item.name, item.pricePerUnit);
+      const quantityUnit = item.quantityUnit ?? getRecommendedQuoteUnit(product);
+      const quote = calculateQuoteBreakdown({
+        product,
+        quantity: item.uomQty,
+        quantityUnit,
+        minimumQuantity: 1,
+        province: address.province,
+        isDelivery: fulfillment === 'delivery',
+      });
+
+      return total + quote.pallets;
+    }, 0);
+  }, [address.province, cart, fulfillment]);
   
   const estimatedTotal = useMemo(() => {
-    return cart.reduce((acc, c) => acc + (c.rawQty * c.pricePerUnit), 0);
-  }, [cart]);
+    return cart.reduce((total, item) => {
+      const product = item.quoteModel ?? buildCartFallbackProduct(item.category, item.name, item.pricePerUnit);
+      const quantityUnit = item.quantityUnit ?? getRecommendedQuoteUnit(product);
+      const quote = calculateQuoteBreakdown({
+        product,
+        quantity: item.uomQty,
+        quantityUnit,
+        minimumQuantity: 1,
+        province: address.province,
+        isDelivery: fulfillment === 'delivery',
+      });
+
+      return total + quote.productTotalZar;
+    }, 0);
+  }, [address.province, cart, fulfillment]);
 
   const suggestedProducts = useMemo(() => {
     if (cart.length === 0) return [];
-    const firstCategory = cart[0].category;
-    const catData = (productData as any)[firstCategory];
-    if (!catData || !catData.catalog) return [];
     const inCartIds = new Set(cart.map(c => c.id));
-    return catData.catalog.filter((i: any) => !inCartIds.has(i.id)).slice(0, 2);
-  }, [cart]);
+    return (categoryData?.catalog || []).filter((i: any) => !inCartIds.has(i.id)).slice(0, 2);
+  }, [cart, categoryData]);
 
   const updateCartItemUom = (id: string, uomQty: number) => {
     if (uomQty < 1) return;
     setCart(cart.map(c => {
       if (c.id === id) {
-        const factor = c.category === 'bricks' ? 500 : 52;
-        return { ...c, uomQty, rawQty: uomQty * factor };
+        const product = c.quoteModel ?? buildCartFallbackProduct(c.category, c.name, c.pricePerUnit);
+        const quantityUnit = c.quantityUnit ?? getRecommendedQuoteUnit(product);
+        return {
+          ...c,
+          quantityUnit,
+          uomQty,
+          rawQty: Math.ceil(convertQuantity(product, uomQty, quantityUnit, 'piece')),
+        };
       }
       return c;
     }));
@@ -94,18 +146,19 @@ export function CartCheckoutWizard() {
   const addSuggestedItem = (p: any) => {
     if (cart.length === 0) return;
     const firstCat = cart[0].category;
-    const factor = firstCat === 'bricks' ? 500 : 52;
-    const pxStr = String(p.price).replace(/[^0-9.]/g, '');
-    const price = parseFloat(pxStr) || 289;
+    const product = p.quoteModel ?? buildCartFallbackProduct(firstCat as any, p.name, parseFloat(String(p.price).replace(/[^0-9.]/g, '')) || 0);
+    const quantityUnit = getRecommendedQuoteUnit(product);
     setCart([...cart, {
       id: p.id,
       name: p.name,
       category: firstCat as any,
-      rawQty: factor,
+      rawQty: Math.ceil(convertQuantity(product, 1, quantityUnit, 'piece')),
       uomQty: 1,
-      pricePerUnit: price,
+      pricePerUnit: product.sellPriceZar,
       image: p.images ? p.images[0] : p.image,
-      color: p.color
+      color: p.color,
+      quantityUnit,
+      quoteModel: product,
     }]);
   };
 
@@ -118,12 +171,12 @@ export function CartCheckoutWizard() {
   };
 
   const fillPercentage = Math.min((totalPallets / 24) * 100, 100);
-  let discountMsg = "Keep adding to reach a full truck load for extra discounts!";
+  let discountMsg = "Adding more material on the same route lowers the delivered rate per unit.";
   if (fulfillment === 'delivery') {
-    if (totalPallets >= 24) discountMsg = "Full truck discount unlocked! (2.5%)";
+    if (totalPallets >= 24) discountMsg = "Full truck loaded. The same trip cost is now spread across the maximum pallet volume.";
   } else if (fulfillment === 'collection') {
-    if (totalPallets >= 20) discountMsg = "Max bulk collection discount unlocked! (5%)";
-    else if (totalPallets >= 10) discountMsg = "Bulk collection discount unlocked! (2.5%)";
+    if (totalPallets >= 20) discountMsg = "High-volume collection loaded.";
+    else if (totalPallets >= 10) discountMsg = "Bulk collection is improving your unit economics.";
   }
 
   return (
@@ -195,22 +248,41 @@ export function CartCheckoutWizard() {
                           <div className="space-y-4">
                             {cart.map((c, idx) => (
                               <div key={idx} className="flex items-center gap-4 p-4 rounded-xl border border-white/10 bg-white/[0.02]">
-                                <div className="w-12 h-12 rounded bg-white/10 overflow-hidden relative">
-                                  {c.image ? <img src={c.image} alt={c.name} className="w-full h-full object-cover" /> : <div className="w-full h-full" style={{ backgroundColor: c.color }} />}
-                                </div>
-                                <div className="flex-1">
-                                  <h4 className="text-white text-sm font-bold">{c.name}</h4>
-                                  <p className="text-white/40 text-[10px] uppercase tracking-widest">{c.rawQty} Units · {c.uomQty} {c.category === 'bricks' ? 'Pallets' : 'Boxes'}</p>
-                                </div>
-                                <div className="text-right">
-                                  <p className="text-white text-sm font-mono font-bold">R {(c.rawQty * c.pricePerUnit).toLocaleString()}</p>
-                                  <button onClick={() => setCart(cart.filter((_, i) => i !== idx))} className="text-[10px] text-red-400 hover:text-red-300 uppercase tracking-widest mt-1">Remove</button>
-                                </div>
+                                {(() => {
+                                  const product = c.quoteModel ?? buildCartFallbackProduct(c.category, c.name, c.pricePerUnit);
+                                  const quantityUnit = c.quantityUnit ?? getRecommendedQuoteUnit(product);
+                                  const quote = calculateQuoteBreakdown({
+                                    product,
+                                    quantity: c.uomQty,
+                                    quantityUnit,
+                                    minimumQuantity: 1,
+                                    province: address.province,
+                                    isDelivery: fulfillment === 'delivery',
+                                  });
+
+                                  return (
+                                    <>
+                                      <div className="w-12 h-12 rounded bg-white/10 overflow-hidden relative">
+                                        {c.image ? <img src={c.image} alt={c.name} className="w-full h-full object-cover" /> : <div className="w-full h-full" style={{ backgroundColor: c.color }} />}
+                                      </div>
+                                      <div className="flex-1">
+                                        <h4 className="text-white text-sm font-bold">{c.name}</h4>
+                                        <p className="text-white/40 text-[10px] uppercase tracking-widest">
+                                          {quote.pieces.toLocaleString()} Units · {c.uomQty} {getPricingUnitLabel(quantityUnit, product.categoryKey, c.uomQty)}
+                                        </p>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className="text-white text-sm font-mono font-bold">{formatZar(quote.productTotalZar)}</p>
+                                        <button onClick={() => setCart(cart.filter((_, i) => i !== idx))} className="text-[10px] text-red-400 hover:text-red-300 uppercase tracking-widest mt-1">Remove</button>
+                                      </div>
+                                    </>
+                                  );
+                                })()}
                               </div>
                             ))}
                             <div className="flex justify-between items-center p-4">
                                <span className="text-white/40 text-xs uppercase tracking-widest font-bold">Est Product Total</span>
-                               <span className="text-2xl font-light text-white">R {Math.round(estimatedTotal).toLocaleString()}</span>
+                               <span className="text-2xl font-light text-white">{formatZar(estimatedTotal)}</span>
                             </div>
                           </div>
                         )}
@@ -300,21 +372,38 @@ export function CartCheckoutWizard() {
                           <h4 className="text-[10px] font-bold uppercase tracking-widest text-white/50">Adjust Existing Items</h4>
                           {cart.map((c) => (
                             <div key={c.id} className="p-4 rounded-xl border border-white/10 flex justify-between items-center gap-4">
-                              <div className="flex-1 min-w-0">
-                                <h5 className="text-sm font-bold text-white truncate">{c.name}</h5>
-                                <p className="text-[10px] uppercase tracking-widest text-white/40">{c.uomQty} {c.category === 'bricks' ? 'Pallets' : 'Boxes'}</p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <input 
-                                  type="range" 
-                                  min="1" 
-                                  max={c.category === 'bricks' ? 24 : 960}
-                                  value={c.uomQty}
-                                  onChange={(e) => updateCartItemUom(c.id, parseInt(e.target.value))}
-                                  className="w-20 md:w-32 accent-white opacity-70 hover:opacity-100 transition-opacity"
-                                />
-                                <span className="text-white font-mono text-xs w-8 text-right">{c.uomQty}</span>
-                              </div>
+                              {(() => {
+                                const product = c.quoteModel ?? buildCartFallbackProduct(c.category, c.name, c.pricePerUnit);
+                                const quantityUnit = c.quantityUnit ?? getRecommendedQuoteUnit(product);
+                                const maxQty =
+                                  quantityUnit === 'pallet'
+                                    ? product.palletsPerTruck
+                                    : quantityUnit === 'm2'
+                                      ? Math.ceil(product.palletsPerTruck * (product.boxesPerPallet || 1))
+                                      : quantityUnit === 'box'
+                                        ? Math.ceil(product.palletsPerTruck * (product.boxesPerPallet || 1))
+                                        : Math.ceil(product.palletsPerTruck * product.piecesPerPallet);
+
+                                return (
+                                  <>
+                                    <div className="flex-1 min-w-0">
+                                      <h5 className="text-sm font-bold text-white truncate">{c.name}</h5>
+                                      <p className="text-[10px] uppercase tracking-widest text-white/40">{c.uomQty} {getPricingUnitLabel(quantityUnit, product.categoryKey, c.uomQty)}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <input 
+                                        type="range" 
+                                        min="1" 
+                                        max={maxQty}
+                                        value={c.uomQty}
+                                        onChange={(e) => updateCartItemUom(c.id, parseInt(e.target.value))}
+                                        className="w-20 md:w-32 accent-white opacity-70 hover:opacity-100 transition-opacity"
+                                      />
+                                      <span className="text-white font-mono text-xs w-8 text-right">{c.uomQty}</span>
+                                    </div>
+                                  </>
+                                );
+                              })()}
                             </div>
                           ))}
                         </div>

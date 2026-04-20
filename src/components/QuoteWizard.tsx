@@ -1,10 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, ChevronRight, Check, ArrowLeft, Send, Package, Truck, MapPin, Building2 } from 'lucide-react';
 import { useVisualLab, useTheme } from './VisualLabContext';
 import { VolumeEconomicsSlider } from './VolumeEconomicsSlider';
 import { QuoteDocument } from './QuoteDocument';
 import { RegionSelector } from './RegionSelector';
+import {
+  convertQuantity,
+  getRecommendedQuoteUnit,
+  type ProductQuoteModel,
+} from '../pricing/quoteEngine';
 
 export function QuoteWizard() {
   const { 
@@ -13,11 +18,10 @@ export function QuoteWizard() {
     activeCategory, 
     selectedCatalogItem,
     quoteQuantity,
-    setQuoteQuantity,
-    setSelectedCatalogItem
+    setQuoteQuantity
   } = useVisualLab();
-  
-  const isBrick = activeCategory === 'bricks';
+  const quoteModel: ProductQuoteModel | null = selectedCatalogItem?.quoteModel ?? null;
+  const quoteUnit = quoteModel ? getRecommendedQuoteUnit(quoteModel) : 'piece';
   
   const [step, setStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
@@ -34,6 +38,18 @@ export function QuoteWizard() {
   const [fulfillment, setFulfillment] = useState<'delivery'|'collection'>('delivery');
   const [selectedRegion, setSelectedRegion] = useState('');
   const [address, setAddress] = useState({ street: '', city: '', code: '' });
+
+  const minimumQuoteQty = useMemo(() => {
+    if (!quoteModel) {
+      return 1;
+    }
+
+    return Math.max(1, Math.ceil(convertQuantity(quoteModel, quoteQuantity || 0, 'm2', quoteUnit)));
+  }, [quoteModel, quoteQuantity, quoteUnit]);
+
+  useEffect(() => {
+    setPalletQty((current) => Math.max(current, minimumQuoteQty));
+  }, [minimumQuoteQty]);
 
   const handleDimChange = (l: string, h: string, w: boolean) => {
     setLength(l);
@@ -78,9 +94,9 @@ export function QuoteWizard() {
                 address={{ street: address.street, city: address.city || "TBD", province: selectedRegion || "Gauteng", code: address.code || "0000" }}
                 fulfillment={fulfillment}
                 uomQty={palletQty}
-                itemName={selectedCatalogItem?.name || (isBrick ? "Signature Clay Bricks" : "Premium Cladding / Paving")}
-                pricePerUnit={isBrick ? (4000/500) : (450/52)} // fallback proxy
-                isBrick={isBrick}
+                quantityUnit={quoteUnit}
+                itemName={selectedCatalogItem?.name || (activeCategory === 'bricks' ? "Signature Clay Bricks" : "Premium Cladding / Paving")}
+                product={quoteModel}
                 activeColor={activeColor}
                 onClose={handleClose}
              />
@@ -326,10 +342,22 @@ export function QuoteWizard() {
                   {step === 4 && (
                     <div className="space-y-4">
                       <VolumeEconomicsSlider
+                        product={quoteModel ?? {
+                          name: selectedCatalogItem?.name || 'Product',
+                          categoryKey: activeCategory,
+                          pricingUnit: activeCategory === 'bricks' ? 'piece' : activeCategory === 'cladding-tiles' ? 'm2' : 'piece',
+                          sellPriceZar: 0,
+                          unitsPerM2: activeCategory === 'bricks' ? 55 : activeCategory === 'cladding-tiles' ? 50 : 1,
+                          weightPerPieceKg: 0,
+                          piecesPerPallet: activeCategory === 'bricks' ? 500 : activeCategory === 'cladding-tiles' ? 2000 : 1,
+                          boxesPerPallet: activeCategory === 'cladding-tiles' ? 40 : 0,
+                          palletsPerTruck: 24,
+                          logistics: { costPricePerKm: 25, sellPricePerKm: 35, fixedFee: 0, minimumCharge: 0 },
+                        }}
                         uomQty={palletQty}
                         setUomQty={setPalletQty}
-                        minUomQty={1}
-                        pricePerUnit={0}
+                        minUomQty={minimumQuoteQty}
+                        quantityUnit={quoteUnit}
                         province={selectedRegion}
                         isDelivery={fulfillment === 'delivery'}
                         accentColor={activeColor}

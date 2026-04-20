@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Heart, 
@@ -23,56 +23,26 @@ import {
   History,
   Activity
 } from 'lucide-react';
+import { toast } from 'sonner';
+import type {
+  MarketingChannel,
+  MarketingCommunityChannelStats,
+  MarketingCommunityComment,
+  MarketingCommunityLikeActor,
+  MarketingCommunityPostSummary,
+} from '../marketing/contracts';
 
 // --- MOCK DATA ---
 
-interface Comment {
-  id: string;
-  user: {
-    name: string;
-    avatar: string;
-    role: string;
-  };
-  content: string;
-  timestamp: string;
-  likes: number;
-  replies?: Comment[];
-}
-
-interface ChannelStats {
-  channel: 'Instagram' | 'LinkedIn' | 'Facebook' | 'Email' | 'TikTok' | 'Pinterest';
-  status: 'Published' | 'Scheduled' | 'Draft' | 'Failed';
-  publishedAt?: string;
-  likes?: number;
-  comments?: number;
-  shares?: number;
-  clicks?: number;
-  saves?: number;
-  opens?: number;
-}
-
-interface CommunityPost {
-  id: string;
-  campaignId: string;
-  campaignName: string;
-  creator: {
-    name: string;
-    avatar: string;
-  };
-  mediaUrl: string;
-  mediaType: 'image' | 'video';
-  caption: string;
-  createdAt: string;
-  channels: ChannelStats[];
-  internalComments: Comment[];
-  internalLikes: number;
-}
+type CommunityPost = MarketingCommunityPostSummary;
 
 const MOCK_POSTS: CommunityPost[] = [
   {
     id: 'POST-001',
     campaignId: 'CAMP-2024-Q1-HERO',
     campaignName: 'Spring Collection Launch',
+    calendarEntryIds: [],
+    publishingJobIds: [],
     creator: {
       name: 'Sarah Jenkins',
       avatar: 'https://i.pravatar.cc/150?u=sarah'
@@ -87,6 +57,7 @@ const MOCK_POSTS: CommunityPost[] = [
       { channel: 'LinkedIn', status: 'Published', publishedAt: '2 hours ago', likes: 450, comments: 22, shares: 45 },
       { channel: 'Facebook', status: 'Published', publishedAt: '2 hours ago', likes: 890, comments: 45, shares: 112 }
     ],
+    internalLikeActors: [],
     internalComments: [
       {
         id: 'C1',
@@ -117,6 +88,8 @@ const MOCK_POSTS: CommunityPost[] = [
     id: 'POST-002',
     campaignId: 'CAMP-EDU-04',
     campaignName: 'Material Masterclass',
+    calendarEntryIds: [],
+    publishingJobIds: [],
     creator: {
       name: 'David Chen',
       avatar: 'https://i.pravatar.cc/150?u=david'
@@ -130,12 +103,15 @@ const MOCK_POSTS: CommunityPost[] = [
       { channel: 'LinkedIn', status: 'Published', publishedAt: '1 day ago', likes: 820, comments: 56, shares: 120 },
       { channel: 'Email', status: 'Published', publishedAt: '1 day ago', opens: 4500, clicks: 850 }
     ],
+    internalLikeActors: [],
     internalComments: []
   },
   {
     id: 'POST-003',
     campaignId: 'CAMP-PROMO-WK12',
     campaignName: 'Trade Discount Week',
+    calendarEntryIds: [],
+    publishingJobIds: [],
     creator: {
       name: 'Sarah Jenkins',
       avatar: 'https://i.pravatar.cc/150?u=sarah'
@@ -150,6 +126,7 @@ const MOCK_POSTS: CommunityPost[] = [
       { channel: 'Facebook', status: 'Published', publishedAt: '2 days ago', likes: 150, comments: 5, shares: 8 },
       { channel: 'Instagram', status: 'Scheduled', publishedAt: 'Tomorrow, 09:00 AM' }
     ],
+    internalLikeActors: [],
     internalComments: [
       {
         id: 'C3',
@@ -179,7 +156,7 @@ const formatNumber = (num: number) => {
   return num.toString();
 };
 
-const CommentThread = ({ comment, isReply = false }: { comment: Comment, isReply?: boolean }) => {
+const CommentThread = ({ comment, isReply = false }: { comment: MarketingCommunityComment, isReply?: boolean }) => {
   const avatarSize = isReply ? "w-8 h-8" : "w-10 h-10";
   const hasReplies = comment.replies && comment.replies.length > 0;
   
@@ -239,9 +216,45 @@ const CommentThread = ({ comment, isReply = false }: { comment: Comment, isReply
   );
 };
 
-export const MarketingCommunityFeed = ({ onNavigate }: { onNavigate?: (module: string) => void }) => {
+export const MarketingCommunityFeed = ({
+  posts = MOCK_POSTS,
+  onOpenCampaign,
+  onOpenAsset,
+  onOpenAnalytics,
+  onOpenHistory,
+  onOpenChannel,
+  onLikePost,
+  onCommentPost,
+  internalLikeActorKey,
+}: {
+  posts?: CommunityPost[];
+  onOpenCampaign?: (post: CommunityPost) => void;
+  onOpenAsset?: (post: CommunityPost) => void;
+  onOpenAnalytics?: (post: CommunityPost) => void;
+  onOpenHistory?: (post: CommunityPost) => void;
+  onOpenChannel?: (post: CommunityPost, channel: MarketingCommunityChannelStats) => void;
+  onLikePost?: (post: CommunityPost) => Promise<void> | void;
+  onCommentPost?: (post: CommunityPost, content: string) => Promise<void> | void;
+  internalLikeActorKey?: string;
+}) => {
   const [selectedPost, setSelectedPost] = useState<CommunityPost | null>(null);
   const [newComment, setNewComment] = useState('');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'All' | 'Published' | 'Scheduled' | 'Failed'>('All');
+  const [channelFilter, setChannelFilter] = useState<MarketingChannel | 'All'>('All');
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [isSubmittingLike, setIsSubmittingLike] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!selectedPost) {
+      return;
+    }
+
+    const refreshed = posts.find((post) => post.id === selectedPost.id) ?? null;
+    if (refreshed && refreshed !== selectedPost) {
+      setSelectedPost(refreshed);
+    }
+  }, [posts, selectedPost]);
 
   // Calculate aggregated totals
   const getAggregatedStats = (post: CommunityPost) => {
@@ -270,6 +283,60 @@ export const MarketingCommunityFeed = ({ onNavigate }: { onNavigate?: (module: s
     };
   };
 
+  const filteredPosts = posts.filter((post) => {
+    const matchesStatus = statusFilter === 'All' ? true : post.channels.some((channel) => channel.status === statusFilter);
+    const matchesChannel = channelFilter === 'All' ? true : post.channels.some((channel) => channel.channel === channelFilter);
+    return matchesStatus && matchesChannel;
+  });
+
+  const hasViewerLikedPost = (post: CommunityPost) => {
+    if (!internalLikeActorKey) {
+      return false;
+    }
+
+    return post.internalLikeActors.some((actor: MarketingCommunityLikeActor) => actor.key === internalLikeActorKey);
+  };
+
+  const handleLikePost = async (post: CommunityPost) => {
+    if (!onLikePost) {
+      toast('Internal likes are not wired yet for this feed.');
+      return;
+    }
+
+    try {
+      const wasLiked = hasViewerLikedPost(post);
+      setIsSubmittingLike(post.id);
+      await onLikePost(post);
+      toast.success(wasLiked ? 'Internal like removed.' : 'Internal like added.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to like this post.');
+    } finally {
+      setIsSubmittingLike(null);
+    }
+  };
+
+  const handleSubmitComment = async () => {
+    if (!selectedPost || !newComment.trim()) {
+      return;
+    }
+
+    if (!onCommentPost) {
+      toast('Internal commenting is not wired yet for this feed.');
+      return;
+    }
+
+    try {
+      setIsSubmittingComment(true);
+      await onCommentPost(selectedPost, newComment.trim());
+      setNewComment('');
+      toast.success('Internal comment added.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to add the comment.');
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col relative">
       {/* Header */}
@@ -284,17 +351,61 @@ export const MarketingCommunityFeed = ({ onNavigate }: { onNavigate?: (module: s
           <p className="text-xs text-white/40">Internal view of published marketing content and aggregated engagement.</p>
         </div>
         <div className="flex items-center gap-3">
-          <button className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-[10px] font-bold uppercase tracking-widest text-white hover:bg-white/10 transition-all flex items-center gap-2">
+          <button
+            onClick={() => setIsFilterOpen((current) => !current)}
+            className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-[10px] font-bold uppercase tracking-widest text-white hover:bg-white/10 transition-all flex items-center gap-2"
+          >
             <Filter size={14} /> Filter
           </button>
         </div>
       </div>
 
+      <AnimatePresence>
+        {isFilterOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="mb-6 rounded-2xl border border-white/8 bg-white/[0.03] px-5 py-4 flex flex-wrap items-center gap-3"
+          >
+            <span className="text-[9px] font-mono uppercase tracking-[0.22em] text-white/25">Status</span>
+            {(['All', 'Published', 'Scheduled', 'Failed'] as const).map((option) => (
+              <button
+                key={option}
+                onClick={() => setStatusFilter(option)}
+                className={`px-3 py-1.5 rounded-lg border text-[9px] font-mono uppercase tracking-[0.22em] transition-colors ${
+                  statusFilter === option
+                    ? 'border-[#00ff88]/20 bg-[#00ff88]/10 text-[#00ff88]'
+                    : 'border-white/10 bg-black/20 text-white/45 hover:text-white'
+                }`}
+              >
+                {option}
+              </button>
+            ))}
+            <span className="ml-4 text-[9px] font-mono uppercase tracking-[0.22em] text-white/25">Channel</span>
+            {(['All', 'Instagram', 'Facebook', 'LinkedIn', 'Email', 'TikTok', 'WhatsApp', 'Pinterest'] as const).map((option) => (
+              <button
+                key={option}
+                onClick={() => setChannelFilter(option)}
+                className={`px-3 py-1.5 rounded-lg border text-[9px] font-mono uppercase tracking-[0.22em] transition-colors ${
+                  channelFilter === option
+                    ? 'border-[#00ff88]/20 bg-[#00ff88]/10 text-[#00ff88]'
+                    : 'border-white/10 bg-black/20 text-white/45 hover:text-white'
+                }`}
+              >
+                {option}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Feed Layout */}
       <div className="flex-1 overflow-y-auto custom-scrollbar pb-24">
         <div className="max-w-2xl mx-auto space-y-8">
-          {MOCK_POSTS.map((post) => {
+          {filteredPosts.map((post) => {
             const stats = getAggregatedStats(post);
+            const viewerHasLiked = hasViewerLikedPost(post);
             
             return (
               <motion.div 
@@ -323,7 +434,7 @@ export const MarketingCommunityFeed = ({ onNavigate }: { onNavigate?: (module: s
                         <button 
                           onClick={(e) => {
                             e.stopPropagation();
-                            onNavigate?.('Campaigns');
+                            onOpenCampaign?.(post);
                           }}
                           className="flex items-center gap-1.5 text-[#00ff88] hover:text-[#00cc6a] transition-colors font-mono uppercase tracking-widest"
                         >
@@ -352,14 +463,22 @@ export const MarketingCommunityFeed = ({ onNavigate }: { onNavigate?: (module: s
                     {/* Channel Badges Overlay */}
                     <div className="absolute top-4 right-4 flex flex-col gap-2">
                       {post.channels.map((ch, i) => (
-                        <div key={i} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg backdrop-blur-md border text-[9px] font-bold uppercase tracking-widest shadow-lg ${
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onOpenChannel?.(post, ch);
+                          }}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg backdrop-blur-md border text-[9px] font-bold uppercase tracking-widest shadow-lg ${
                           ch.status === 'Published' 
                             ? 'bg-black/60 border-white/10 text-white' 
                             : 'bg-amber-500/10 border-amber-500/20 text-amber-400'
-                        }`}>
+                        }`}
+                        >
                           <ChannelIcon channel={ch.channel} size={12} />
                           {ch.channel}
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -396,14 +515,20 @@ export const MarketingCommunityFeed = ({ onNavigate }: { onNavigate?: (module: s
                       <Globe size={10} className="text-[#00ff88]" /> Internal
                     </div>
                     {post.channels.map((ch, i) => (
-                      <div key={i} className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#111] border border-white/10 text-[9px] font-mono text-white/60" title={ch.channel}>
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => onOpenChannel?.(post, ch)}
+                        className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#111] border border-white/10 text-[9px] font-mono text-white/60 hover:text-white transition-colors"
+                        title={ch.channel}
+                      >
                         <ChannelIcon channel={ch.channel} size={10} />
                         {ch.status === 'Published' ? (
                           <span>{formatNumber((ch.likes || 0) + (ch.comments || 0) + (ch.shares || 0))} Engagements</span>
                         ) : (
                           <span className="text-amber-400/70">Scheduled</span>
                         )}
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -411,13 +536,25 @@ export const MarketingCommunityFeed = ({ onNavigate }: { onNavigate?: (module: s
                 {/* Internal Action Row */}
                 <div className="px-4 py-3 flex items-center justify-between relative z-10 bg-[#0a0a0a]">
                   <div className="flex items-center gap-2">
-                    <button className="px-4 py-2.5 rounded-xl text-xs font-bold text-white/60 hover:text-white hover:bg-white/5 transition-all flex items-center gap-2">
-                      <Heart size={16} /> Like
+                    <button
+                      onClick={() => { void handleLikePost(post); }}
+                      disabled={isSubmittingLike === post.id}
+                      className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 disabled:opacity-40 ${
+                        viewerHasLiked
+                          ? 'bg-rose-500/12 border border-rose-500/25 text-rose-300 hover:bg-rose-500/18'
+                          : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
+                      }`}
+                    >
+                      <Heart size={16} className={viewerHasLiked ? 'fill-current text-rose-400' : ''} />
+                      {isSubmittingLike === post.id ? (viewerHasLiked ? 'Updating...' : 'Liking...') : viewerHasLiked ? 'Unlike' : 'Like'}
                     </button>
                     <button onClick={() => setSelectedPost(post)} className="px-4 py-2.5 rounded-xl text-xs font-bold text-white/60 hover:text-white hover:bg-white/5 transition-all flex items-center gap-2">
                       <MessageCircle size={16} /> Comment
                     </button>
-                    <button className="px-4 py-2.5 rounded-xl text-xs font-bold text-white/60 hover:text-white hover:bg-white/5 transition-all flex items-center gap-2">
+                    <button
+                      onClick={() => toast('Community saves stay internal for now.')}
+                      className="px-4 py-2.5 rounded-xl text-xs font-bold text-white/60 hover:text-white hover:bg-white/5 transition-all flex items-center gap-2"
+                    >
                       <Bookmark size={16} /> Save
                     </button>
                   </div>
@@ -428,6 +565,11 @@ export const MarketingCommunityFeed = ({ onNavigate }: { onNavigate?: (module: s
               </motion.div>
             );
           })}
+          {filteredPosts.length === 0 && (
+            <div className="rounded-[28px] border border-dashed border-white/10 bg-white/[0.02] px-8 py-12 text-center">
+              <p className="text-sm text-white/55">No community posts match the active filters yet.</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -462,13 +604,13 @@ export const MarketingCommunityFeed = ({ onNavigate }: { onNavigate?: (module: s
                 </div>
                 <div className="flex items-center gap-2">
                   <button 
-                    onClick={() => onNavigate?.('Analytics')}
+                    onClick={() => onOpenAnalytics?.(selectedPost)}
                     className="px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-all border border-white/5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest"
                   >
                     <BarChart3 size={14} /> Analytics
                   </button>
                   <button 
-                    onClick={() => onNavigate?.('Calendar')}
+                    onClick={() => onOpenHistory?.(selectedPost)}
                     className="px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-all border border-white/5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest"
                   >
                     <History size={14} /> History
@@ -490,13 +632,13 @@ export const MarketingCommunityFeed = ({ onNavigate }: { onNavigate?: (module: s
                     {/* Linked Campaign & Asset */}
                     <div className="flex flex-col items-end gap-2">
                       <button 
-                        onClick={() => onNavigate?.('Campaigns')}
+                        onClick={() => onOpenCampaign?.(selectedPost)}
                         className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#00ff88]/10 border border-[#00ff88]/20 text-[10px] font-bold uppercase tracking-widest text-[#00ff88] hover:bg-[#00ff88]/20 transition-colors"
                       >
                         <Megaphone size={12} /> {selectedPost.campaignName}
                       </button>
                       <button 
-                        onClick={() => onNavigate?.('AssetLab')}
+                        onClick={() => onOpenAsset?.(selectedPost)}
                         className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] font-bold uppercase tracking-widest text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
                       >
                         <ImageIcon size={12} /> View Source Asset
@@ -563,7 +705,12 @@ export const MarketingCommunityFeed = ({ onNavigate }: { onNavigate?: (module: s
                   <h4 className="text-[10px] font-bold uppercase tracking-widest text-white/40 mb-4">Channel Breakdown</h4>
                   <div className="grid grid-cols-1 gap-3">
                     {selectedPost.channels.map((ch, i) => (
-                      <div key={i} className="bg-[#0a0a0a] border border-white/5 rounded-xl p-4 flex flex-col gap-4 shadow-sm hover:border-white/10 transition-colors">
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => onOpenChannel?.(selectedPost, ch)}
+                        className="w-full text-left bg-[#0a0a0a] border border-white/5 rounded-xl p-4 flex flex-col gap-4 shadow-sm hover:border-white/10 transition-colors"
+                      >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-white border border-white/10">
@@ -631,7 +778,7 @@ export const MarketingCommunityFeed = ({ onNavigate }: { onNavigate?: (module: s
                             <Clock size={12} /> Scheduled for {ch.publishedAt}
                           </div>
                         )}
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -666,8 +813,9 @@ export const MarketingCommunityFeed = ({ onNavigate }: { onNavigate?: (module: s
                     rows={1}
                   />
                   <button 
+                    onClick={() => { void handleSubmitComment(); }}
                     className={`p-2.5 rounded-xl transition-all mb-0.5 mr-0.5 ${newComment.trim() ? 'bg-[#00ff88] text-black hover:bg-[#00cc6a] shadow-[0_0_15px_rgba(0,255,136,0.3)]' : 'bg-white/5 text-white/20 cursor-not-allowed'}`}
-                    disabled={!newComment.trim()}
+                    disabled={!newComment.trim() || isSubmittingComment}
                   >
                     <Send size={16} />
                   </button>

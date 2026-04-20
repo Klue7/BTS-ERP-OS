@@ -531,6 +531,11 @@ function LightingController() {
 
 export function ProductScene() {
   const cameraRef = useRef<any>(null);
+  const location = useLocation();
+
+  if (location.pathname.startsWith('/portal') || location.pathname.startsWith('/studio/creative')) {
+    return null;
+  }
 
   return (
     <div className="fixed inset-0 z-10 pointer-events-none">

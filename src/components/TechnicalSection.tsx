@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { productData } from '../catalog/productData';
 import { useVisualLab, useTheme } from './VisualLabContext';
 import {
   Download, Calculator, ArrowRight, ShoppingBag, ChevronRight, Sparkles,
@@ -12,27 +11,29 @@ import { calculateProjectEstimation } from '../utils/calculator';
 import { VolumeEconomicsSlider } from './VolumeEconomicsSlider';
 import { QuoteDocument } from './QuoteDocument';
 import { RegionSelector } from './RegionSelector';
+import { useStorefrontCategoryData } from '../catalog/storefrontData';
+import {
+  convertQuantity,
+  getPieceLabel,
+  getRecommendedQuoteUnit,
+  type ProductQuoteModel,
+} from '../pricing/quoteEngine';
 
 gsap.registerPlugin(ScrollTrigger);
 
 // ─── Inline Quote Wizard (steps after estimation) ────────────────────────────
 function InlineQuoteWizard({
-  results, dims, tileName, tilePrice, onBack, onDone
+  results, tileName, tilePrice, quoteModel, onBack, onDone
 }: {
-  results: any; dims: any; tileName: string; tilePrice: string | null;
+  results: any; tileName: string; tilePrice: string | null; quoteModel: ProductQuoteModel | null;
   onBack: () => void; onDone: () => void;
 }) {
   const { primaryColor: accentColor, textClass, borderClass, bgClass } = useTheme();
-  const { activeCategory, setSelectedCatalogItem, selectedCatalogItem } = useVisualLab();
-  const isBrick = activeCategory === 'bricks';
-
-  // Derive starting UOM qty from calculator results
-  const startUomQty = isBrick
-    ? Math.max(1, Math.ceil((results.tileQuantity ?? 0) / 500))   // pallets
-    : Math.max(1, Math.ceil((results.tileQuantity ?? 0) / 52));   // boxes
-
-  // Parse price per individual unit (tile or brick)
-  const pricePerUnit = parseFloat((tilePrice || '0').replace(/[^0-9.]/g, '')) / (isBrick ? 500 : 52) || 0;
+  const quoteUnit = quoteModel ? getRecommendedQuoteUnit(quoteModel) : 'piece';
+  const startUomQty = quoteModel
+    ? Math.max(1, Math.ceil(convertQuantity(quoteModel, results.tileQuantity ?? 0, 'piece', quoteUnit)))
+    : 1;
+  const pieceLabel = quoteModel ? getPieceLabel(quoteModel.categoryKey) : 'unit';
 
   const [step, setStep]           = useState(1);
   const [dir, setDir]             = useState(1);
@@ -78,9 +79,9 @@ function InlineQuoteWizard({
       address={{...address, province: selectedRegion || address.province}}
       fulfillment={fulfillment}
       uomQty={uomQty}
+      quantityUnit={quoteUnit}
       itemName={tileName}
-      pricePerUnit={pricePerUnit}
-      isBrick={isBrick}
+      product={quoteModel}
       activeColor={accentColor}
       onClose={onDone}
     />
@@ -107,7 +108,7 @@ function InlineQuoteWizard({
         <span className="text-[9px] text-white/30 uppercase tracking-widest">Quoting:</span>
         <span className="text-[11px] font-mono text-white/70">{tileName}</span>
         {tilePrice && <span className={`${textClass}/70 text-[10px] font-mono`}>{tilePrice}</span>}
-        <span className="text-white/20 text-[10px]">· {results.tileQuantity} tiles</span>
+        <span className="text-white/20 text-[10px]">· {results.tileQuantity} {results.tileQuantity === 1 ? pieceLabel : `${pieceLabel}s`}</span>
       </div>
 
       {/* Step progress */}
@@ -258,10 +259,22 @@ function InlineQuoteWizard({
                   <p className="text-white/30 text-xs mt-1">Adjust quantity to see how delivered cost per unit changes.</p>
                 </div>
                 <VolumeEconomicsSlider
+                  product={quoteModel ?? {
+                    name: tileName,
+                    categoryKey: 'cladding-tiles',
+                    pricingUnit: 'm2',
+                    sellPriceZar: 0,
+                    unitsPerM2: 50,
+                    weightPerPieceKg: 0,
+                    piecesPerPallet: 2000,
+                    boxesPerPallet: 40,
+                    palletsPerTruck: 24,
+                    logistics: { costPricePerKm: 25, sellPricePerKm: 35, fixedFee: 0, minimumCharge: 0 },
+                  }}
                   uomQty={uomQty}
                   setUomQty={setUomQty}
                   minUomQty={startUomQty}
-                  pricePerUnit={pricePerUnit}
+                  quantityUnit={quoteUnit}
                   province={selectedRegion || address.province}
                   isDelivery={fulfillment === 'delivery'}
                   accentColor={accentColor}
@@ -442,22 +455,40 @@ function ResultRow({ label, value, unit, accent }: { label: string; value: numbe
 export function TechnicalSection() {
   const { primaryColor: accentColor, textClass, borderClass, bgClass } = useTheme();
   const { activeCategory, isEstimating, setIsEstimating, selectedCatalogItem } = useVisualLab();
-  const categoryData = productData[activeCategory];
+  const { categoryData } = useStorefrontCategoryData(activeCategory);
+  const catalogItems = categoryData?.catalog ?? [];
+  const resolvedCatalogItem = useMemo(() => {
+    if (!selectedCatalogItem) {
+      return catalogItems[0] ?? null;
+    }
+
+    const matched =
+      catalogItems.find((item: any) => item.inventoryProductId && item.inventoryProductId === selectedCatalogItem.inventoryProductId) ??
+      catalogItems.find((item: any) => item.publicSku && item.publicSku === selectedCatalogItem.publicSku) ??
+      catalogItems.find((item: any) => item.id === selectedCatalogItem.id) ??
+      null;
+
+    return matched ? { ...selectedCatalogItem, ...matched } : selectedCatalogItem;
+  }, [catalogItems, selectedCatalogItem]);
 
   // Build display specs: prefer selected tile's specs, fallback to category technical specs
   const activeSpecs: { label: string; value: string; position: { x: number; y: number } }[] =
-    selectedCatalogItem?.specs
+    resolvedCatalogItem?.specs
       ? [
-          { label: 'LENGTH',    value: selectedCatalogItem.specs.module?.split('x')[0]?.trim() ?? '220mm', position: { x: -1, y:  1 } },
-          { label: 'HEIGHT',    value: selectedCatalogItem.specs.module?.split('x')[1]?.trim() ?? '73mm',  position: { x: -1, y: -1 } },
-          { label: 'THICKNESS', value: selectedCatalogItem.specs.module?.split('x')[2]?.trim() ?? '9mm',   position: { x:  1, y:  1 } },
-          { label: 'FINISH',    value: selectedCatalogItem.specs.selection ?? 'Matte / Granular',          position: { x:  1, y: -1 } },
+          { label: 'LENGTH',    value: resolvedCatalogItem.specs.module?.split('x')[0]?.trim() ?? '220mm', position: { x: -1, y:  1 } },
+          { label: 'HEIGHT',    value: resolvedCatalogItem.specs.module?.split('x')[1]?.trim() ?? '73mm',  position: { x: -1, y: -1 } },
+          { label: 'THICKNESS', value: resolvedCatalogItem.specs.module?.split('x')[2]?.trim() ?? '9mm',   position: { x:  1, y:  1 } },
+          { label: 'FINISH',    value: resolvedCatalogItem.specs.selection ?? 'Matte / Granular',          position: { x:  1, y: -1 } },
         ]
       : (categoryData?.technical?.specs ?? []);
 
   // Price per sqm from the selected tile (if any)
-  const tilePrice   = selectedCatalogItem?.price ?? null;
-  const tileName    = selectedCatalogItem?.name ?? categoryData?.productName ?? 'Product';
+  const tilePrice   = resolvedCatalogItem?.price ?? null;
+  const tileName    = resolvedCatalogItem?.name ?? categoryData?.productName ?? 'Product';
+  const quoteModel: ProductQuoteModel | null = resolvedCatalogItem?.quoteModel ?? null;
+  const pieceLabel = quoteModel ? getPieceLabel(quoteModel.categoryKey) : 'tile';
+  const technicalTests = resolvedCatalogItem?.technicalTests ?? [];
+  const specSheetUrl = resolvedCatalogItem?.specSheetUrl;
 
   const [dims, setDims] = useState({ width: 4, height: 2.5, unit: 'm' as 'm' | 'mm', wastage: 10 });
 
@@ -469,7 +500,25 @@ export function TechnicalSection() {
   const mainTl      = useRef<gsap.core.Timeline | null>(null);
   const pulseTl     = useRef<gsap.core.Timeline | null>(null);
 
-  const results = useMemo(() => calculateProjectEstimation(dims), [dims]);
+  const results = useMemo(
+    () =>
+      calculateProjectEstimation(
+        quoteModel ?? {
+          name: tileName,
+          categoryKey: activeCategory,
+          pricingUnit: activeCategory === 'bricks' ? 'piece' : activeCategory === 'cladding-tiles' ? 'm2' : 'piece',
+          sellPriceZar: 0,
+          unitsPerM2: activeCategory === 'bricks' ? 55 : activeCategory === 'cladding-tiles' ? 50 : 1,
+          weightPerPieceKg: 0,
+          piecesPerPallet: activeCategory === 'bricks' ? 500 : activeCategory === 'cladding-tiles' ? 2000 : 1,
+          boxesPerPallet: activeCategory === 'cladding-tiles' ? 40 : 0,
+          palletsPerTruck: 24,
+          logistics: { costPricePerKm: 25, sellPricePerKm: 35, fixedFee: 0, minimumCharge: 0 },
+        },
+        dims,
+      ),
+    [activeCategory, dims, quoteModel, tileName],
+  );
 
   // Lock page scroll when estimating
   useEffect(() => {
@@ -542,7 +591,7 @@ export function TechnicalSection() {
 
   // ── Handlers ────────────────────────────────────────────────────────────
   const handleAddToCart = () => {
-    alert(`Added ${results.tileQuantity} tiles (${results.totalArea.toFixed(2)} m²) to cart!`);
+    alert(`Added ${results.tileQuantity} ${results.tileQuantity === 1 ? pieceLabel : `${pieceLabel}s`} (${results.totalArea.toFixed(2)} m²) to cart!`);
     setIsEstimating(false);
     setInWizard(false);
   };
@@ -559,6 +608,13 @@ export function TechnicalSection() {
   const handleWizardDone = () => {
     setInWizard(false);
     setIsEstimating(false);
+  };
+  const handleDownloadSpecSheet = () => {
+    if (!specSheetUrl) {
+      return;
+    }
+
+    window.open(specSheetUrl, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -590,10 +646,10 @@ export function TechnicalSection() {
               transition={{ duration: 0.4, delay: 0.1 }}
               className="mt-2 flex items-center gap-2"
             >
-              {selectedCatalogItem?.color && (
+              {resolvedCatalogItem?.color && (
                 <div
                   className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: selectedCatalogItem.color }}
+                  style={{ backgroundColor: resolvedCatalogItem.color }}
                 />
               )}
               <span className="text-[10px] font-mono text-white/40">
@@ -681,9 +737,9 @@ export function TechnicalSection() {
               >
                 <InlineQuoteWizard
                   results={results}
-                  dims={dims}
                   tileName={tileName}
                   tilePrice={tilePrice}
+                  quoteModel={quoteModel}
                   onBack={handleWizardBack}
                   onDone={handleWizardDone}
                 />
@@ -760,7 +816,7 @@ export function TechnicalSection() {
           {/* Live results strip */}
           <div className="est-item grid grid-cols-3 gap-4 border-t border-white/5 pt-6 mb-6">
             <ResultRow label="Total Area"  value={results.totalArea}     unit="m²" />
-            <ResultRow label="Tile Count"  value={results.tileQuantity} unit="tiles" accent={accentColor} />
+            <ResultRow label="Piece Count"  value={results.tileQuantity} unit={pieceLabel} accent={accentColor} />
             <ResultRow label={`+${dims.wastage}% Wastage`} value={Math.ceil(results.tileQuantity * dims.wastage / 100)} unit="extra" />
           </div>
 
@@ -806,9 +862,22 @@ export function TechnicalSection() {
       {/* Download spec sheet (Material Analysis mode only) */}
       {!isEstimating && (
         <div className="absolute bottom-10 left-10 z-30 hidden md:block">
+          {technicalTests.length > 0 ? (
+            <div className="mb-4 flex flex-wrap gap-2 max-w-md">
+              {technicalTests.slice(0, 3).map((result) => (
+                <div key={result.type} className="rounded-full border border-white/8 bg-white/[0.03] px-4 py-2">
+                  <div className="text-[8px] font-bold uppercase tracking-[0.35em] text-white/25">{result.type}</div>
+                  <div className="mt-1 text-[11px] font-mono text-white/70">
+                    {result.value} {result.unit}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
           <button
-            onClick={() => alert('Spec sheet download started.')}
-            className="px-7 py-3.5 bg-white/5 border border-white/8 rounded-full text-[9px] font-bold tracking-[0.4em] uppercase text-white/50 hover:bg-white/10 hover:text-white transition-all flex items-center gap-3 group"
+            onClick={handleDownloadSpecSheet}
+            disabled={!specSheetUrl}
+            className="px-7 py-3.5 bg-white/5 border border-white/8 rounded-full text-[9px] font-bold tracking-[0.4em] uppercase text-white/50 hover:bg-white/10 hover:text-white transition-all flex items-center gap-3 group disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Download size={13} className="group-hover:translate-y-0.5 transition-transform" />
             Download Spec Sheet

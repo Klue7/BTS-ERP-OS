@@ -339,21 +339,23 @@ export function PremiumShowcaseSection() {
   const timerDisplay = `${String(Math.floor(timer / 60)).padStart(2, '0')}:${String(timer % 60).padStart(2, '0')}`;
 
   return (
-    <section id="premium-showcase" className="relative h-screen w-full bg-transparent flex flex-col overflow-hidden select-none">
+    <section id="premium-showcase" className="relative flex min-h-[100svh] w-full select-none flex-col overflow-hidden bg-[#050505] text-white lg:h-screen">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_48%,rgba(34,197,94,0.12),transparent_36%),linear-gradient(180deg,rgba(255,255,255,0.035),transparent_18%,transparent_82%,rgba(34,197,94,0.045))]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
       {/* Corner accents */}
-      {['top-16 left-4', 'top-16 right-4', 'bottom-16 left-4', 'bottom-16 right-4'].map((pos, i) => (
+      {['top-14 left-4 sm:left-6', 'top-14 right-4 sm:right-6', 'bottom-10 left-4 sm:left-6', 'bottom-10 right-4 sm:right-6'].map((pos, i) => (
         <div key={i} className={`absolute ${pos} z-10 pointer-events-none`}>
           <div className={`w-6 h-6 border-white/20 ${i === 0 ? 'border-t border-l' : i === 1 ? 'border-t border-r' : i === 2 ? 'border-b border-l' : 'border-b border-r'}`} />
         </div>
       ))}
 
       {/* ── TOP HUD ───────────────────────────────────────────────────────── */}
-      <div ref={hudRef} className="relative z-30 flex items-center justify-between gap-4 px-12 lg:px-24 pt-32 pb-4 shrink-0 flex-wrap max-w-[1600px] mx-auto w-full">
+      <div ref={hudRef} className="relative z-30 mx-auto flex w-full max-w-[1600px] shrink-0 flex-wrap items-center justify-between gap-4 px-5 pb-3 pt-24 sm:px-8 sm:pt-28 lg:px-24 lg:pb-4 lg:pt-32">
 
         {/* Title block */}
         <div className="flex flex-col gap-1 min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
-            <h2 className="text-2xl md:text-4xl font-['Anton'] text-white uppercase tracking-tighter leading-none">
+            <h2 className="font-['Playfair_Display'] text-3xl leading-none text-white md:text-5xl">
               {hasPlayedToday ? 'See You Tomorrow' : 'Tile Sweeper'}
             </h2>
             <motion.span
@@ -495,7 +497,8 @@ export function PremiumShowcaseSection() {
 
       {/* ── 3D Canvas ─────────────────────────────────────────────────────── */}
       <div
-        className={`relative flex-1 z-20 pointer-events-auto transition-all duration-700 mx-6 ${
+        data-free-scroll
+        className={`relative z-20 mx-3 min-h-[360px] flex-1 overflow-hidden rounded-[2rem] border border-white/[0.06] bg-black/20 shadow-[0_30px_120px_rgba(0,0,0,0.35)] transition-all duration-700 sm:mx-6 sm:min-h-[440px] lg:min-h-0 ${
           hasPlayedToday ? 'opacity-20 blur-sm scale-95' : 'opacity-100'
         }`}
         id="wall-3d-anchor"
@@ -518,7 +521,7 @@ export function PremiumShowcaseSection() {
       </div>
 
       {/* ── Bottom action bar ─────────────────────────────────────────────── */}
-      <div className="relative z-30 shrink-0 px-12 lg:px-24 pb-16 pt-4 flex items-center justify-between gap-4 flex-wrap max-w-[1600px] mx-auto w-full">
+      <div className="relative z-30 mx-auto flex w-full max-w-[1600px] shrink-0 flex-wrap items-center justify-between gap-4 px-5 pb-10 pt-4 sm:px-8 sm:pb-12 lg:px-24 lg:pb-16">
         <AnimatePresence mode="wait">
           <motion.p
             key={gameState}

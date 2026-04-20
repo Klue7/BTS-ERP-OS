@@ -74,7 +74,7 @@ export function ProductDetailsWizard() {
                 <div className="bg-[#0a0a0a] border-r border-white/5 p-12 flex flex-col justify-center relative overflow-hidden group">
                   <div className="absolute inset-0 opacity-10 pointer-events-none">
                     <img 
-                      src={selectedCatalogItem.image || "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=1200"}
+                      src={selectedCatalogItem.image || selectedCatalogItem.images?.[0] || "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=1200"}
                       alt="Texture BG"
                       className="w-full h-full object-cover blur-xl grayscale"
                     />
@@ -110,7 +110,7 @@ export function ProductDetailsWizard() {
                 <div className="p-8 md:p-12 lg:p-16 flex flex-col">
                   <div className="mb-4">
                     <span className={`text-[10px] font-bold tracking-[0.2em] uppercase ${textClass}`}>
-                      {activeCategory === 'bricks' ? 'Brick Types' : 'Colour Moods'} • {selectedCatalogItem.mood || 'Signature'}
+                      {activeCategory === 'bricks' ? 'Brick Types' : 'Colour Moods'} • {selectedCatalogItem.mood || selectedCatalogItem.subCategory || 'Signature'}
                     </span>
                   </div>
                   

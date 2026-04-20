@@ -1,18 +1,18 @@
 import React from 'react';
-import { productData } from '../catalog/productData';
 import { useVisualLab, useTheme } from './VisualLabContext';
 import { motion, AnimatePresence } from 'motion/react';
+import { useStorefrontCategoryData } from '../catalog/storefrontData';
 
 export function MaterialStorySection() {
   const { activeCategory, selectedCatalogItem } = useVisualLab();
-  const categoryData = productData[activeCategory];
+  const { categoryData } = useStorefrontCategoryData(activeCategory);
   const { materialStory } = categoryData;
 
   const item = selectedCatalogItem;
 
   const headline    = item?.name        ?? materialStory.title;
   const subtitle    = item
-    ? (item.mood ?? 'AUTHENTIC TEXTURE').toUpperCase()
+    ? (item.mood ?? item.subCategory ?? 'AUTHENTIC TEXTURE').toUpperCase()
     : materialStory.subtitle;
   const description = item?.description ?? materialStory.description;
   const price       = item?.price       ?? null;

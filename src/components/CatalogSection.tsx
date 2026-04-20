@@ -1,14 +1,24 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useVisualLab, useTheme } from './VisualLabContext';
-import { productData } from '../catalog/productData';
+import { useStorefrontCategoryData } from '../catalog/storefrontData';
 import { ChevronRight, ArrowLeft, Check, Package, Truck, Star, Layers,
   Sun, Moon, ShieldCheck, Palette, LayoutGrid, Sparkles, MapPin,
-  User, Phone, Mail, Building2, Calculator, Hash, ShoppingBag, ShoppingCart, ChevronLeft as ChevLeft
+  User, Phone, Mail, Building2, ShoppingCart, ChevronLeft as ChevLeft
 } from 'lucide-react';
 import { VolumeEconomicsSlider } from './VolumeEconomicsSlider';
-import { QuoteDocument } from './QuoteDocument';
 import { toast } from 'sonner';
+import {
+  calculateDeterministicProjectEstimation,
+  calculateQuoteBreakdown,
+  convertQuantity,
+  formatStoredPriceLabel,
+  formatZar,
+  getPieceLabel,
+  getPricingUnitLabel,
+  getRecommendedQuoteUnit,
+  type ProductQuoteModel,
+} from '../pricing/quoteEngine';
 
 // ─── Mood / Type definitions ────────────────────────────────────────────────
 const MOODS = [
@@ -18,15 +28,13 @@ const MOODS = [
   { id: 'Dark',           icon: Moon,         label: 'Premium'  },
 ];
 const BRICK_TYPES = [
-  { id: 'NFB', icon: Package,     label: 'NFB', description: 'Non-Facing Brick',       strength: '7-10 MPa'  },
+  { id: 'NFP', icon: Package,     label: 'NFP', description: 'Non-Facing Plaster',     strength: '7-10 MPa'  },
   { id: 'NFX', icon: ShieldCheck, label: 'NFX', description: 'Non-Facing Extra',        strength: '14-20 MPa' },
   { id: 'FBA', icon: Palette,     label: 'FBA', description: 'Face Brick Aesthetic',    strength: '20 MPa+'   },
   { id: 'FBS', icon: LayoutGrid,  label: 'FBS', description: 'Face Brick Standard',     strength: '20 MPa+'   },
   { id: 'FBX', icon: Sparkles,    label: 'FBX', description: 'Face Brick Extra',        strength: '25 MPa+'   },
+  { id: 'Maxi', icon: Layers,     label: 'Maxi', description: 'Large-format Clay Brick', strength: '20 MPa+'   },
 ];
-
-// Tiles per sqm constant (standard thin brick)
-const TILES_PER_SQM = 52;
 
 // ─── Small 3-D brick tile visual ────────────────────────────────────────────
 function BrickChip({ color, isPaving }: { color: string; isPaving: boolean }) {
@@ -58,62 +66,12 @@ function BrickChip({ color, isPaving }: { color: string; isPaving: boolean }) {
   );
 }
 
-// ─── Price Summary Card with cart/quote fork ────────────────────────────────
-function PriceSummaryCard({
-  item, totalSqm, totalTiles, estimatedTotal, accentColor, onCart, onQuote
-}: {
-  item: any; totalSqm: number; totalTiles: number; estimatedTotal: number;
-  accentColor: string; onCart: () => void; onQuote: () => void;
-}) {
-  const currencySymbol = (item.price || 'R').replace(/[0-9., ]/g, '').trim() || 'R';
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ type: 'spring', damping: 24, stiffness: 200 }}
-      className="rounded-2xl border overflow-hidden"
-      style={{ borderColor: `${accentColor}40`, backgroundColor: `${accentColor}08` }}
-    >
-      {/* Price row */}
-      <div className="p-5 grid grid-cols-3 gap-4 text-center border-b" style={{ borderColor: `${accentColor}20` }}>
-        <div>
-          <div className="text-white/30 text-[9px] uppercase tracking-widest mb-1">Coverage</div>
-          <div className="text-white font-mono text-sm">{totalSqm.toFixed(1)} m²</div>
-        </div>
-        <div>
-          <div className="text-white/30 text-[9px] uppercase tracking-widest mb-1">Tiles</div>
-          <div className="font-mono text-sm font-bold" style={{ color: accentColor }}>{totalTiles.toLocaleString()}</div>
-        </div>
-        <div>
-          <div className="text-white/30 text-[9px] uppercase tracking-widest mb-1">Est. Total</div>
-          <div className="text-white font-mono text-sm font-bold">
-            {currencySymbol}{estimatedTotal.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
-        </div>
-      </div>
-      {/* Fork CTAs */}
-      <div className="p-4 flex flex-col sm:flex-row gap-3">
-        <button
-          onClick={onCart}
-          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-white/10 text-[11px] font-bold uppercase tracking-widest text-white/60 hover:text-white hover:border-white/30 hover:bg-white/5 transition-all"
-        >
-          <ShoppingBag size={14} /> Add to Cart &amp; Shop More
-        </button>
-        <button
-          onClick={onQuote}
-          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-[0.98]"
-          style={{ backgroundColor: accentColor, color: '#000' }}
-        >
-          Continue to Quote <ChevronRight size={14} />
-        </button>
-      </div>
-    </motion.div>
-  );
-}
-
 // ─── Embedded Quote Wizard (Minimalist UX) ──────────────────────────────
 function EmbeddedQuoteWizard({ item, accentColor, onBack }: { item: any; accentColor: string; onBack: () => void }) {
-  const { activeCategory } = useVisualLab();
+  const { activeCategory, setCart } = useVisualLab();
+  const quoteModel: ProductQuoteModel = item.quoteModel;
+  const pieceLabel = getPieceLabel(quoteModel.categoryKey);
+  const quoteUnit = getRecommendedQuoteUnit(quoteModel);
   // Step 1=Specs, 2=Estimation, 3=Fulfilment, 4=Address(delivery only), 5=Contact
   const [step, setStep] = useState<number>(1);
   const [length, setLength] = useState('');
@@ -122,27 +80,59 @@ function EmbeddedQuoteWizard({ item, accentColor, onBack }: { item: any; accentC
   const [address, setAddress] = useState({ street: '', city: '', province: '', code: '' });
   const [contact, setContact] = useState({ name: '', email: '', phone: '', company: '' });
   const [submitted, setSubmitted] = useState(false);
+  const [uomQty, setUomQty] = useState(1);
 
   // Calculations
-  const isBrick = activeCategory === 'bricks';
-  const TILES_SQM = isBrick ? 52 : 36;
   const l = parseFloat(length) || 0;
   const w = parseFloat(width) || 0;
   const sqm = l * w;
-  const totalTiles = Math.ceil(sqm * TILES_SQM);
-  const hasQty = totalTiles > 0;
+  const estimation = useMemo(() => {
+    if (l <= 0 || w <= 0) {
+      return null;
+    }
 
-  const rawPrice = parseFloat((item.price || '0').toString().replace(/[^0-9.]/g, '')) || 0;
-  const estimatedTotal = sqm * rawPrice;
-  const wastage = Math.ceil(totalTiles * 0.1);
+    return calculateDeterministicProjectEstimation(quoteModel, {
+      width: l,
+      height: w,
+      unit: 'm',
+      wastage: 10,
+    });
+  }, [l, quoteModel, w]);
+  const basePieceQuantity = useMemo(
+    () => (sqm > 0 ? Math.ceil(sqm * quoteModel.unitsPerM2) : 0),
+    [quoteModel.unitsPerM2, sqm],
+  );
+  const recommendedQuoteQuantity = useMemo(() => {
+    if (!estimation) {
+      return 1;
+    }
 
-  // Delivery flat-rate estimate by province (matches VolumeEconomicsSlider logic)
-  const DELIVERY_RATES: Record<string, number> = {
-    'Gauteng': 850, 'Western Cape': 2200, 'KwaZulu-Natal': 1800,
-    'Eastern Cape': 2400, 'Limpopo': 1400, 'Mpumalanga': 1200,
-    'North West': 1100, 'Free State': 1300, 'Northern Cape': 2800,
-  };
-  const deliveryFee = DELIVERY_RATES[address.province] ?? 0;
+    return Math.max(1, Math.ceil(convertQuantity(quoteModel, estimation.tileQuantity, 'piece', quoteUnit)));
+  }, [estimation, quoteModel, quoteUnit]);
+  const hasQty = Boolean(estimation && estimation.tileQuantity > 0);
+  const isDelivery = fulfillment === 'delivery';
+  const liveQuote = useMemo(() => {
+    if (!hasQty) {
+      return null;
+    }
+
+    return calculateQuoteBreakdown({
+      product: quoteModel,
+      quantity: uomQty,
+      minimumQuantity: recommendedQuoteQuantity,
+      quantityUnit: quoteUnit,
+      province: address.province,
+      isDelivery,
+    });
+  }, [address.province, hasQty, isDelivery, quoteModel, quoteUnit, recommendedQuoteQuantity, uomQty]);
+  const storedPriceLabel = formatStoredPriceLabel(quoteModel);
+  const quoteUnitLabel = getPricingUnitLabel(quoteUnit, quoteModel.categoryKey, recommendedQuoteQuantity);
+  const quantityLabel = getPricingUnitLabel('piece', quoteModel.categoryKey, estimation?.tileQuantity ?? 0);
+  const boxesPerPallet = quoteModel.boxesPerPallet ?? 0;
+
+  useEffect(() => {
+    setUomQty(recommendedQuoteQuantity);
+  }, [item.id, recommendedQuoteQuantity]);
 
   // Step sequence depends on fulfillment choice
   // Collection: 3=Fulfilment → 5=Contact (skip address)
@@ -166,7 +156,26 @@ function EmbeddedQuoteWizard({ item, accentColor, onBack }: { item: any; accentC
   };
 
   const handleAddToCart = () => {
-    alert(`Added ${totalTiles + wastage} tiles of ${item.name} to cart!`);
+    if (!liveQuote) {
+      return;
+    }
+
+    setCart((currentCart) => [
+      ...currentCart,
+      {
+        id: `${item.id}-${Date.now()}`,
+        name: item.name,
+        category: activeCategory,
+        rawQty: liveQuote.pieces,
+        uomQty: liveQuote.quoteUnitQuantity,
+        quantityUnit: liveQuote.quoteUnit,
+        pricePerUnit: quoteModel.sellPriceZar,
+        image: item.image,
+        color: item.color,
+        quoteModel,
+      },
+    ]);
+    toast.success(`Added ${liveQuote.quoteUnitQuantity} ${getPricingUnitLabel(liveQuote.quoteUnit, quoteModel.categoryKey, liveQuote.quoteUnitQuantity)} of ${item.name} to cart.`);
     onBack();
   };
 
@@ -186,7 +195,11 @@ function EmbeddedQuoteWizard({ item, accentColor, onBack }: { item: any; accentC
           <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: item.color }} />
           <span className="text-[9px] font-black text-white">{item.name}</span>
           <span className="text-[9px] text-[#1DB954] font-mono font-black">{item.price}</span>
-          {sqm > 0 && <span className="text-[8px] text-white/30 font-mono">{sqm.toFixed(1)} m²</span>}
+          {estimation ? (
+            <span className="text-[8px] text-white/30 font-mono">
+              {estimation.tileQuantity.toLocaleString()} {quantityLabel}
+            </span>
+          ) : null}
         </div>
 
         {steps.map((s, i) => {
@@ -259,9 +272,9 @@ function EmbeddedQuoteWizard({ item, accentColor, onBack }: { item: any; accentC
                   <span className="text-[10px] text-white/30 uppercase tracking-widest block mb-1">Selling Price</span>
                   <div className="flex gap-1 items-start text-[#1DB954]">
                     <span className="text-sm font-bold mt-1">R</span>
-                    <span className="text-3xl font-black">{item.price?.replace('R', '') || 'P.O.A'}</span>
+                    <span className="text-3xl font-black">{quoteModel.sellPriceZar.toFixed(2)}</span>
                   </div>
-                  <span className="text-[8px] text-white/20 uppercase">Incl. Vat / m²</span>
+                  <span className="text-[8px] text-white/20 uppercase">Incl. Vat / {getPricingUnitLabel(quoteModel.pricingUnit, quoteModel.categoryKey, 1)}</span>
                 </div>
               </div>
             </div>
@@ -271,11 +284,11 @@ function EmbeddedQuoteWizard({ item, accentColor, onBack }: { item: any; accentC
               <div className="grid grid-cols-2 gap-y-3 gap-x-8">
                 {[
                   ['Dimensions', item.specs?.module || '220 x 73 x 9mm'],
-                  ['Grade', 'Premium Select'],
-                  ['Texture', 'Fine Granular Matte'],
-                  ['UV Stable', '30 yr'],
-                  ['Absorption', '< 7%'],
-                  ['Strength', '2.8 MPa'],
+                  ['Stored UOM', storedPriceLabel],
+                  ['Coverage', item.specs?.coverage || `${quoteModel.unitsPerM2} ${getPricingUnitLabel('piece', quoteModel.categoryKey, 2)} / sqm`],
+                  ['Pallet Pack', quoteModel.categoryKey === 'cladding-tiles' ? `${boxesPerPallet} boxes / pallet` : `${quoteModel.piecesPerPallet} ${getPricingUnitLabel('piece', quoteModel.categoryKey, 2)} / pallet`],
+                  ['Truck Capacity', `${quoteModel.palletsPerTruck} pallets / full truck`],
+                  ['Origin', `${quoteModel.logistics.originCity || 'Supplier'}${quoteModel.logistics.originRegion ? `, ${quoteModel.logistics.originRegion}` : ''}`],
                 ].map(([k, v]) => (
                   <div key={k} className="flex justify-between border-b border-white/5 pb-1">
                     <span className="text-[9px] uppercase tracking-[0.2em] text-white/40">{k}</span>
@@ -329,24 +342,50 @@ function EmbeddedQuoteWizard({ item, accentColor, onBack }: { item: any; accentC
                 <div className="text-xl font-bold text-white font-mono">{sqm > 0 ? sqm.toFixed(1) : '–'}<span className="text-[10px] ml-1 text-white/30">m²</span></div>
               </div>
               <div>
-                <div className="text-[8px] font-black tracking-[0.2em] uppercase text-white/20 mb-2">Tile Count</div>
-                <div className="text-xl font-bold text-[#1DB954] font-mono">{totalTiles > 0 ? totalTiles : '–'}<span className="text-[10px] ml-1 text-white/30">tiles</span></div>
+                <div className="text-[8px] font-black tracking-[0.2em] uppercase text-white/20 mb-2">{pieceLabel} Count</div>
+                <div className="text-xl font-bold text-[#1DB954] font-mono">
+                  {estimation ? estimation.tileQuantity.toLocaleString() : '–'}
+                  <span className="text-[10px] ml-1 text-white/30">{getPricingUnitLabel('piece', quoteModel.categoryKey, estimation?.tileQuantity ?? 2)}</span>
+                </div>
               </div>
               <div>
                 <div className="text-[8px] font-black tracking-[0.2em] uppercase text-white/20 mb-2">+10% Wastage</div>
-                <div className="text-xl font-bold text-white font-mono">{totalTiles > 0 ? wastage : '–'}<span className="text-[10px] ml-1 text-white/30">extra</span></div>
+                <div className="text-xl font-bold text-white font-mono">
+                  {estimation ? Math.max(0, estimation.tileQuantity - basePieceQuantity).toLocaleString() : '–'}
+                  <span className="text-[10px] ml-1 text-white/30">extra {getPricingUnitLabel('piece', quoteModel.categoryKey, 2)}</span>
+                </div>
               </div>
             </div>
+
+            {estimation ? (
+              <div className="grid grid-cols-2 gap-4 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                <div>
+                  <div className="text-[8px] font-black tracking-[0.2em] uppercase text-white/20 mb-2">Recommended Quote Volume</div>
+                  <div className="text-xl font-bold text-white font-mono">
+                    {recommendedQuoteQuantity.toLocaleString()}
+                    <span className="text-[10px] ml-1 text-white/30">{quoteUnitLabel}</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[8px] font-black tracking-[0.2em] uppercase text-white/20 mb-2">Packaging Context</div>
+                  <div className="text-sm font-mono text-white/70">
+                    {quoteModel.categoryKey === 'cladding-tiles'
+                      ? `1 box = 1 m² · ${boxesPerPallet} boxes / pallet`
+                      : `${quoteModel.unitsPerM2.toFixed(0)} ${getPricingUnitLabel('piece', quoteModel.categoryKey, 2)} / m² · ${quoteModel.piecesPerPallet} / pallet`}
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             <div>
               <div className="text-[9px] font-black tracking-[0.25em] uppercase text-white/40 mb-3">Estimated Investment</div>
               <div className="flex items-baseline gap-2 text-[#1DB954]">
                 <span className="text-4xl font-bold">R</span>
                 <span className="text-5xl lg:text-6xl font-['Anton'] tracking-wider">
-                  {estimatedTotal > 0 ? estimatedTotal.toLocaleString('en-ZA', { minimumFractionDigits: 2 }) : '–'}
+                  {estimation ? estimation.totalInvestment.toLocaleString('en-ZA', { minimumFractionDigits: 2 }) : '–'}
                 </span>
               </div>
-              <div className="text-[8px] text-white/20 uppercase tracking-widest mt-1 italic">Inclusive of VAT – Excl. Delivery</div>
+              <div className="text-[8px] text-white/20 uppercase tracking-widest mt-1 italic">{storedPriceLabel} · Inclusive of VAT · Delivery added later</div>
             </div>
 
             <div className="space-y-4 pt-2">
@@ -399,6 +438,22 @@ function EmbeddedQuoteWizard({ item, accentColor, onBack }: { item: any; accentC
               ))}
             </div>
 
+            {fulfillment === 'collection' && liveQuote ? (
+              <VolumeEconomicsSlider
+                product={quoteModel}
+                uomQty={uomQty}
+                setUomQty={setUomQty}
+                minUomQty={recommendedQuoteQuantity}
+                quantityUnit={quoteUnit}
+                province={quoteModel.logistics.originRegion ?? ''}
+                isDelivery={false}
+                accentColor={accentColor}
+                textClass="text-[#1DB954]"
+                bgClass="bg-[#1DB954]"
+                borderClass="border-[#1DB954]"
+              />
+            ) : null}
+
             <div className="flex justify-between items-center pt-4 border-t border-white/5">
               <button onClick={() => setStep(2)} className="flex items-center gap-2 text-[9px] uppercase tracking-widest text-white/30 hover:text-white transition-colors">
                 <ArrowLeft size={12} /> Back to Estimation
@@ -445,29 +500,53 @@ function EmbeddedQuoteWizard({ item, accentColor, onBack }: { item: any; accentC
               ))}
             </div>
 
-            {/* Live delivery estimate based on province */}
-            {address.province && DELIVERY_RATES[address.province] !== undefined && (
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="p-4 rounded-xl border border-[#1DB954]/20 bg-[#1DB954]/05 flex items-start gap-3"
-              >
-                <Truck size={16} className="text-[#1DB954] shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-[9px] uppercase tracking-widest text-[#1DB954] font-black mb-1">Delivery Estimate — {address.province}</div>
-                  <div className="text-white text-sm font-mono font-bold">R {deliveryFee.toLocaleString('en-ZA')}<span className="text-white/30 text-[10px] ml-2 font-normal">flat rate for this province</span></div>
-                  <div className="text-white/30 text-[9px] mt-1">Factory: Brakpan, Gauteng · Final cost confirmed at quote stage</div>
-                </div>
-              </motion.div>
-            )}
+            {liveQuote ? (
+              <>
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-4 rounded-xl border border-[#1DB954]/20 bg-[#1DB954]/05 flex items-start gap-3"
+                >
+                  <Truck size={16} className="text-[#1DB954] shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-[9px] uppercase tracking-widest text-[#1DB954] font-black mb-1">
+                      Delivery Estimate — {address.city || address.province}
+                    </div>
+                    <div className="text-white text-sm font-mono font-bold">
+                      {formatZar(liveQuote.deliveryTotalZar)}
+                      <span className="text-white/30 text-[10px] ml-2 font-normal">
+                        {liveQuote.distanceKm.toFixed(0)} km route · {liveQuote.distanceSource}
+                      </span>
+                    </div>
+                    <div className="text-white/30 text-[9px] mt-1">
+                      Factory: {quoteModel.logistics.originCity || 'Supplier origin'}{quoteModel.logistics.originRegion ? `, ${quoteModel.logistics.originRegion}` : ''} ·
+                      Delivered at {formatZar(liveQuote.pricePerPieceDeliveredZar)} / {pieceLabel}
+                      {quoteModel.categoryKey === 'cladding-tiles' ? ` · ${formatZar(liveQuote.pricePerBoxDeliveredZar)} / box` : ''}
+                      {' '}· {formatZar(liveQuote.pricePerPalletDeliveredZar)} / pallet
+                    </div>
+                  </div>
+                </motion.div>
 
-            {/* Unknown province prompt */}
-            {address.province && DELIVERY_RATES[address.province] === undefined && (
+                <VolumeEconomicsSlider
+                  product={quoteModel}
+                  uomQty={uomQty}
+                  setUomQty={setUomQty}
+                  minUomQty={recommendedQuoteQuantity}
+                  quantityUnit={quoteUnit}
+                  province={address.province}
+                  isDelivery
+                  accentColor={accentColor}
+                  textClass="text-[#1DB954]"
+                  bgClass="bg-[#1DB954]"
+                  borderClass="border-[#1DB954]"
+                />
+              </>
+            ) : address.province ? (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 rounded-xl border border-white/10 bg-white/[0.03] text-[10px] text-white/40">
                 <MapPin size={14} className="inline mr-2 text-white/20" />
-                Delivery cost for <span className="text-white">{address.province}</span> will be calculated and confirmed in your quote.
+                Delivery route for <span className="text-white">{address.province}</span> will be calculated as soon as a valid quote quantity is set.
               </motion.div>
-            )}
+            ) : null}
 
             <div className="flex justify-between items-center pt-4 border-t border-white/5">
               <button onClick={goBack} className="flex items-center gap-2 text-[9px] uppercase tracking-widest text-white/30 hover:text-white transition-colors">
@@ -495,6 +574,28 @@ function EmbeddedQuoteWizard({ item, accentColor, onBack }: { item: any; accentC
               <h1 className="text-4xl font-['Anton'] uppercase text-white tracking-wider">Almost done —<br/>your details.</h1>
               <p className="text-white/30 text-xs mt-2">Just enough to open the draft quote.</p>
             </div>
+
+            {liveQuote ? (
+              <div className="grid grid-cols-2 gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <div>
+                  <div className="text-[9px] uppercase tracking-widest text-white/30 mb-1">Order basis</div>
+                  <div className="text-white font-mono text-sm">
+                    {liveQuote.quoteUnitQuantity.toLocaleString()} {getPricingUnitLabel(liveQuote.quoteUnit, quoteModel.categoryKey, liveQuote.quoteUnitQuantity)}
+                  </div>
+                  <div className="text-white/35 text-[10px] mt-1">
+                    {liveQuote.pieces.toLocaleString()} {getPricingUnitLabel('piece', quoteModel.categoryKey, liveQuote.pieces)} · {liveQuote.sqm.toFixed(2)} m²
+                    {quoteModel.categoryKey === 'cladding-tiles' ? ` · ${liveQuote.boxes.toFixed(2)} boxes` : ''}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[9px] uppercase tracking-widest text-white/30 mb-1">Quote total</div>
+                  <div className="text-white font-mono text-sm">{formatZar(liveQuote.totalZar)}</div>
+                  <div className="text-white/35 text-[10px] mt-1">
+                    Product {formatZar(liveQuote.productTotalZar)} · {isDelivery ? `Transport ${formatZar(liveQuote.deliveryTotalZar)}` : 'Collection'}
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             <div className="space-y-4">
               {([
@@ -528,7 +629,7 @@ function EmbeddedQuoteWizard({ item, accentColor, onBack }: { item: any; accentC
                 disabled={!canContinue()}
                 className="px-8 py-3 bg-[#1DB954] text-black font-black text-[10px] uppercase tracking-[0.2em] rounded-full flex items-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#1ed760] transition-all"
               >
-                Submit Quote <Check size={14} />
+                Submit Deterministic Quote <Check size={14} />
               </button>
             </div>
           </motion.div>
@@ -671,6 +772,7 @@ export function CatalogSection() {
   const { activeCategory, setSelectedCatalogItem, setCart } = useVisualLab();
   const { primaryColor } = useTheme();
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const { categoryData } = useStorefrontCategoryData(activeCategory);
 
   // Propagate to global context so all downstream sections reflect this selection
   const handleSelectItem = (item: any) => {
@@ -678,18 +780,35 @@ export function CatalogSection() {
     setSelectedCatalogItem(item);   // persists to context → drives tile colour + all sections
   };
 
-  const items      = (productData as any)[activeCategory]?.catalog || [];
+  const items      = categoryData?.catalog || [];
   const { primaryColor: accentColor } = useTheme();
+  const inventoryBackedItems = items.some((item: any) => item.inventoryProductId);
 
-  const categories = useMemo(() =>
-    activeCategory === 'bricks' ? BRICK_TYPES : MOODS,
-  [activeCategory]);
+  const categories = useMemo<any[]>(() => {
+    if (!inventoryBackedItems) {
+      return activeCategory === 'bricks' ? BRICK_TYPES : MOODS;
+    }
+
+    if (activeCategory === 'bricks') {
+      return Array.from(new Set(items.map((item: any) => item.subCategory).filter(Boolean))).map((id) => {
+        const match = BRICK_TYPES.find((type) => type.id === id);
+        return match ?? { id, icon: Package, label: id, description: `${id} published type`, strength: 'Published' };
+      });
+    }
+
+    return Array.from(new Set(items.map((item: any) => item.mood).filter(Boolean))).map((id) => {
+      const match = MOODS.find((mood) => mood.label === id || mood.id === id);
+      return match ?? { id, icon: Layers, label: id, description: `${id} published type` };
+    });
+  }, [activeCategory, inventoryBackedItems, items]);
 
   const groupedItems = useMemo(() => {
     const groups: Record<string, any[]> = {};
     categories.forEach(cat => {
       groups[cat.id] = items.filter((item: any) =>
-        activeCategory === 'bricks' ? item.subCategory === cat.id : item.mood === cat.id
+        activeCategory === 'bricks'
+          ? item.subCategory === cat.id
+          : item.mood === cat.id || item.mood === cat.label
       );
     });
     return groups;

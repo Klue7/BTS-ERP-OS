@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState } from 'react';
+import type { CustomerAccountCategory } from '../customers/accountCategories';
+import type { ProductQuoteModel, QuoteQuantityUnit } from '../pricing/quoteEngine';
 
 interface Design {
   id: string;
@@ -79,6 +81,8 @@ export interface CartItem {
   pricePerUnit: number;
   image: string;
   color: string;
+  quantityUnit?: QuoteQuantityUnit;
+  quoteModel?: ProductQuoteModel;
 }
 
 interface VisualLabState {
@@ -108,10 +112,16 @@ interface VisualLabState {
   setIsLoggedIn: (loggedIn: boolean) => void;
   isLoginPageOpen: boolean;
   setIsLoginPageOpen: (open: boolean) => void;
-  userRole: 'customer' | 'employee' | null;
-  setUserRole: (role: 'customer' | 'employee' | null) => void;
+  userRole: 'customer' | 'employee' | 'supplier' | null;
+  setUserRole: (role: 'customer' | 'employee' | 'supplier' | null) => void;
+  customerAccountCategory: CustomerAccountCategory | null;
+  setCustomerAccountCategory: (category: CustomerAccountCategory | null) => void;
+  currentCustomerProfileId: string | null;
+  setCurrentCustomerProfileId: (customerId: string | null) => void;
   isViewingPortal: boolean;
   setIsViewingPortal: (viewing: boolean) => void;
+  postLoginRedirect: string | null;
+  setPostLoginRedirect: (path: string | null) => void;
 
   cart: CartItem[];
   setCart: React.Dispatch<React.SetStateAction<CartItem[]>>;
@@ -152,8 +162,11 @@ export function VisualLabProvider({ children }: { children: React.ReactNode }) {
   const [isCartWizardOpen, setIsCartWizardOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoginPageOpen, setIsLoginPageOpen] = useState(false);
-  const [userRole, setUserRole] = useState<'customer' | 'employee' | null>(null);
+  const [userRole, setUserRole] = useState<'customer' | 'employee' | 'supplier' | null>(null);
+  const [customerAccountCategory, setCustomerAccountCategory] = useState<CustomerAccountCategory | null>(null);
+  const [currentCustomerProfileId, setCurrentCustomerProfileId] = useState<string | null>('CUST_001');
   const [isViewingPortal, setIsViewingPortal] = useState(false);
+  const [postLoginRedirect, setPostLoginRedirect] = useState<string | null>(null);
   const [isEstimating, setIsEstimating] = useState(false);
   const [btsCoins, setBtsCoins] = useState(0);
   const [designs, setDesigns] = useState<Design[]>([
@@ -340,7 +353,10 @@ export function VisualLabProvider({ children }: { children: React.ReactNode }) {
       isLoggedIn, setIsLoggedIn,
       isLoginPageOpen, setIsLoginPageOpen,
       userRole, setUserRole,
+      customerAccountCategory, setCustomerAccountCategory,
+      currentCustomerProfileId, setCurrentCustomerProfileId,
       isViewingPortal, setIsViewingPortal,
+      postLoginRedirect, setPostLoginRedirect,
       cart, setCart,
       isCartWizardOpen, setIsCartWizardOpen,
       isEstimating, setIsEstimating,
